@@ -1,4 +1,4 @@
-# 🧠 Home NAS + Media Streaming Server
+# 🧠 WYC-music-streaming — Home NAS + Media Streaming Server
 
 ## 📌 Overview
 
@@ -88,17 +88,22 @@ sudo chown -R username:username /home/username/share
 Set permissions:
 
 ```
-sudo chmod -R 775 /home/username/share
+# Directories: rwx for owner and group; setgid so new files keep the group
+sudo find /home/username/share -type d -exec chmod 2775 {} +
+# Files: rw for owner and group, no execute bit
+sudo find /home/username/share -type f -exec chmod 664 {} +
 ```
 
 Add users to group:
 
 ```
-sudo usermod -aG username freind1
+sudo usermod -aG username friend1
 sudo usermod -aG username jellyfin
 ```
 
 > ⚠️ Samba access depends on underlying Linux file permissions.
+>
+> Avoid `chmod -R 775`: it marks every music file as executable.
 
 ---
 
@@ -124,7 +129,7 @@ Example configuration:
 [owner]
    path = /home/wick/share/owner
    browseable = no
-   valid users = wick
+   valid users = owner
    read only = no
    create mask = 0660
    directory mask = 0770
@@ -132,11 +137,18 @@ Example configuration:
 [friend1]
    path = /home/wick/share/friend1
    browseable = no
-   valid users = friend1 owner(optional: when you want to be super user for manage your server)
+   # Optional: add owner so the admin can manage this share.
+   valid users = friend1 owner
    read only = no
    create mask = 0660
    directory mask = 0770
 ```
+
+> ⚠️ Samba does not support inline comments. Text after a value
+> (e.g. `valid users = friend1 owner(admin)`) is read as part of the value,
+> so `owner` would be denied. Put comments on their own line starting with `#`.
+
+Full config: [configs/smb.conf](configs/smb.conf)
 
 Test config:
 
@@ -204,15 +216,58 @@ smb://<server-ip>
   * VLC
   * Windows Explorer
 
-* Access in PC (linux)
-  * Mount NAS Command NOTE:(YOU HAVE TO MOUNT EVERY TIME BEFORE UPLOADING FILE IN PC.)
-  ``` 
-  sudo mount -t cifs //<your IP address>/share /mnt/nas -o username=wick
-  ```
-  * Backup Command
-  ```
-  rsync -av /home/username/your target directory/ /mnt/nas/backup/
-  ```
+* Access in PC (Linux): see [Mount the NAS on Linux](#mount-the-nas-on-linux)
+
+---
+
+### Mount the NAS on Linux
+
+The path after the IP is the **share name** from `smb.conf` (`public`, `wick`, `safeena`).
+
+One-time mount (lost after reboot):
+
+```
+sudo apt install cifs-utils
+sudo mkdir -p /mnt/nas
+sudo mount -t cifs //<server-ip>/wick /mnt/nas -o username=wick,uid=$(id -u),gid=$(id -g)
+```
+
+Auto-mount on boot (no need to mount every time):
+
+1. Create a credentials file readable only by root:
+
+   ```
+   sudo tee /root/.smbcredentials > /dev/null <<'EOF'
+   username=wick
+   password=<your-samba-password>
+   EOF
+   sudo chmod 600 /root/.smbcredentials
+   ```
+
+2. Add this line to `/etc/fstab` (replace `1000` with your `id -u` / `id -g`):
+
+   ```
+   //<server-ip>/wick  /mnt/nas  cifs  credentials=/root/.smbcredentials,uid=1000,gid=1000,_netdev,nofail,x-systemd.automount  0  0
+   ```
+
+3. Test:
+
+   ```
+   sudo systemctl daemon-reload
+   sudo mount -a
+   ls /mnt/nas
+   ```
+
+`x-systemd.automount` mounts the share on first access. `nofail` lets the PC boot when the NAS is off.
+
+### Backup
+
+Quote paths that contain spaces:
+
+```
+rsync -av "/home/<you>/<source dir>/" /mnt/nas/backup/
+```
+
 ---
 
 ### Stream Music
@@ -258,8 +313,12 @@ Fix:
 
 ```
 sudo usermod -aG wick jellyfin
-sudo chmod -R 775 /home/wick/share
+sudo find /home/wick/share -type d -exec chmod 2775 {} +
+sudo find /home/wick/share -type f -exec chmod 664 {} +
+sudo systemctl restart jellyfin
 ```
+
+Group membership applies only after the service restarts.
 
 ---
 
@@ -317,8 +376,6 @@ It provides a strong foundation for DevOps and security-related roles.
 ---
 
 ## 📸 Screenshots
-
-(Add images here)
 
 * Jellyfin UI
 
