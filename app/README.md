@@ -19,6 +19,17 @@ WYC_MUSIC_STREAMING_CONFIG=/path/to/dev-config.toml uv run python -m wyc_music_s
 
 Never use dev mode on the NAS.
 
+Frontend (Node 24 through nvm). Run the backend in dev mode on port 8097 first; Vite proxies `/api` to it:
+
+```
+cd app/frontend
+npm install
+npm run dev          # http://localhost:5173
+npm test             # unit and component tests
+npm run check        # svelte-check, must show 0 errors and 0 warnings
+npm run build        # writes build/, which the backend serves at /
+```
+
 ## NAS: one-time setup
 
 Quick way: run steps 2–7 with one script. It asks for the Tailscale logins and the Jellyfin key, and is safe to run again:

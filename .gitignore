@@ -8,6 +8,7 @@ __pycache__/
 .pytest_cache/
 app/frontend/node_modules/
 app/frontend/build/
+app/frontend/.svelte-kit/
 # never commit real config or keys (public repo)
 config.toml
 *.key
