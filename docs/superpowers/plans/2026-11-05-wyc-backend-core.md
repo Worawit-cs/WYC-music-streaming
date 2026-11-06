@@ -897,6 +897,12 @@ def test_playlist_title_is_default_album():
     assert got == Suggested("Some Phonk Track", "PhonkChannel", "Phonk Mix")
 
 
+def test_title_first_when_right_side_is_the_channel():
+    # Real YouTube title seen in a dev run: "Title – Artist", uploaded by the artist.
+    got = clean("Numb (Official Music Video) [4K UPGRADE] – Linkin Park", "Linkin Park")
+    assert got == Suggested("Numb", "Linkin Park", "Singles")
+
+
 def test_empty_values_get_fallbacks():
     assert clean("", "") == Suggested("Unknown", "Unknown Artist", "Singles")
 ```
@@ -968,7 +974,11 @@ def clean(
         if len(parts) == 2:
             left, right = parts[0].strip(), parts[1].strip()
             if not a:
-                a, t = left, right
+                ch = clean_channel(channel).lower()
+                if ch and right.lower() == ch and left.lower() != ch:
+                    a, t = right, left  # "Title – Artist" uploaded by the artist
+                else:
+                    a, t = left, right
             elif left.lower() == a.lower():
                 t = right
     if not a:
@@ -983,7 +993,7 @@ def clean(
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `uv run pytest tests/test_metadata.py -v`
-Expected: 14 passed
+Expected: 15 passed
 
 - [ ] **Step 5: Commit**
 
@@ -2211,7 +2221,7 @@ def test_keyword_search_uses_ytsearch10_flat():
         "entries": [
             {"id": "kXYiU_JCYtU", "title": "Linkin Park - Numb (Official Music Video)",
              "channel": "Linkin Park", "duration": 187},
-            {"id": "not-a-video"},
+            {"id": "not-a-video-id"},
             None,
         ],
     })
@@ -2755,8 +2765,10 @@ class Worker:
             self._clean_tmp(tmp_dir, job.id)
 
         rel = final.relative_to(user.music_dir).as_posix()
-        self.store.finish(job.id, rel)
+        # Index the file before marking the job done, so a client that sees
+        # "done" always finds the track in /api/library.
         await asyncio.to_thread(self.library.add_file, user.name, final)
+        self.store.finish(job.id, rel)
         self.refresher.schedule()
         self._publish_job(job.id)
         self.events.publish(user.name, "library", {"added": [rel]})
