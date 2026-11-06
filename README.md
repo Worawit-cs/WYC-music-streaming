@@ -423,3 +423,10 @@ It provides a strong foundation for DevOps and security-related roles.
 ```
 * Network diagram
   ![Network diagram](images/network-diagram.png)
+
+---
+
+## 🎵 Music downloader app
+
+A web app on the NAS downloads music from YouTube straight into each user's
+Jellyfin library. Setup and deploy: [app/README.md](app/README.md).

@@ -1,0 +1,26 @@
+# Copy to /etc/wyc-music-streaming/config.toml (NOT into git; this repo is public).
+#   sudo install -m 640 -o root -g wyc-music-streaming config.example.toml /etc/wyc-music-streaming/config.toml
+
+[server]
+host = "127.0.0.1"          # must stay loopback; tailscale serve is the only way in
+port = 8097
+data_dir = "/var/lib/wyc-music-streaming"
+dev = false
+# dev_user = "wick"         # dev machine only: user for requests without the Tailscale header
+
+[jellyfin]
+url = "http://127.0.0.1:8096"
+api_key_file = "/etc/wyc-music-streaming/jellyfin.key"   # chmod 640 root:wyc-music-streaming
+
+[download]
+concurrency = 2
+
+[users.wick]
+tailscale_login = "wick@gmail.com"
+music_dir = "/home/wick/share/wick/music"
+jellyfin_user = "wick"
+
+[users.safeena]
+tailscale_login = "safeena@gmail.com"
+music_dir = "/home/wick/share/safeena/music"
+jellyfin_user = "safeena"

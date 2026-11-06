@@ -1,0 +1,12 @@
+[Unit]
+Description=Update yt-dlp for WYC-music-streaming
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=wick
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/uv pip install --python /opt/wyc-music-streaming/repo/app/backend/.venv/bin/python -U "yt-dlp[default]"
+# "+" runs this line as root, so it can restart the app service.
+ExecStartPost=+/bin/systemctl restart wyc-music-streaming.service

@@ -1,0 +1,26 @@
+[Unit]
+Description=WYC-music-streaming (music download web app)
+After=network-online.target jellyfin.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wyc-music-streaming
+Group=wick
+UMask=0002
+WorkingDirectory=/opt/wyc-music-streaming/repo/app/backend
+Environment=WYC_MUSIC_STREAMING_CONFIG=/etc/wyc-music-streaming/config.toml
+Environment=HOME=/var/lib/wyc-music-streaming
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/opt/wyc-music-streaming/repo/app/backend/.venv/bin/python -m wyc_music_streaming
+Restart=on-failure
+RestartSec=5
+# exit code 2 = config error: do not restart in a loop
+RestartPreventExitStatus=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/wyc-music-streaming /home/wick/share
+
+[Install]
+WantedBy=multi-user.target

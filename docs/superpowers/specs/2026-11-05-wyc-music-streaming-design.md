@@ -397,6 +397,7 @@ All calls use the API key and pass `userId`.
 ## 9. Deployment (GitHub → old PC)
 
 ```
+sudo mkdir -p /opt/wyc-music-streaming && sudo chown wick: /opt/wyc-music-streaming
 git clone https://github.com/Worawit-cs/WYC-music-streaming.git /opt/wyc-music-streaming/repo
 sudo /opt/wyc-music-streaming/repo/app/deploy/update.sh
 ```
@@ -404,10 +405,7 @@ sudo /opt/wyc-music-streaming/repo/app/deploy/update.sh
 `update.sh` (idempotent):
 
 1. `git -C /opt/wyc-music-streaming/repo pull --ff-only`
-2. In `backend/`:
-   - `uv sync --python 3.12`
-   - then `uv pip install -U "yt-dlp[default]"`, so a sync never rolls yt-dlp back
-   - The venv is at `/opt/wyc-music-streaming/repo/app/backend/.venv`.
+2. As the repo owner (`wick`), with `UV_PYTHON_INSTALL_DIR=/opt/wyc-music-streaming/python`: `uv sync --frozen --no-dev --python 3.12`, then `uv pip install -U "yt-dlp[default]"`. The uv Python must live outside home dirs so the service user can run it.
 3. `npm ci && npm run build` in `frontend/`.
 4. Install the units to `/etc/systemd/system/`, then run `systemctl daemon-reload`.
 5. `systemctl restart wyc-music-streaming`.
@@ -437,7 +435,7 @@ User=wyc-music-streaming
 Group=wick
 UMask=0002
 WorkingDirectory=/opt/wyc-music-streaming/repo/app/backend
-ExecStart=/opt/wyc-music-streaming/repo/app/backend/.venv/bin/uvicorn wyc_music_streaming.main:app --host 127.0.0.1 --port 8097
+ExecStart=/opt/wyc-music-streaming/repo/app/backend/.venv/bin/python -m wyc_music_streaming
 Environment=WYC_MUSIC_STREAMING_CONFIG=/etc/wyc-music-streaming/config.toml
 Restart=on-failure
 NoNewPrivileges=true
@@ -445,9 +443,12 @@ ProtectSystem=strict
 ReadWritePaths=/var/lib/wyc-music-streaming /home/wick/share
 ```
 
+The app reads host and port from the validated config. The loopback check in config.py therefore covers the real listen address.
+
 `wyc-music-streaming-update-ytdlp.timer`:
 
 - Runs weekly: `uv pip install -U "yt-dlp[default]" ytmusicapi`, then restarts wyc-music-streaming.
+- Runs as `wick`. The restart line runs as root through systemd's `+` prefix.
 
 ## 10. Testing
 
