@@ -96,6 +96,21 @@ def _error_text(exc: BaseException) -> str:
     return text
 
 
+def _can_rename(src_dir: Path, dst_dir: Path) -> bool:
+    """Try a real rename of an empty probe file from src_dir into dst_dir."""
+    name = f".wyc-rename-probe-{os.getpid()}"
+    src, dst = src_dir / name, dst_dir / name
+    try:
+        src.touch()
+        os.replace(src, dst)
+    except OSError:
+        return False
+    finally:
+        src.unlink(missing_ok=True)
+        dst.unlink(missing_ok=True)
+    return True
+
+
 class Worker:
     def __init__(
         self,
@@ -119,10 +134,14 @@ class Worker:
         self._tmp_dirs = {name: self._pick_tmp_dir(user) for name, user in config.users.items()}
 
     def _pick_tmp_dir(self, user: User) -> Path:
-        """Use data_dir/tmp when it is on the same filesystem as music_dir, so os.replace is atomic."""
+        """Use data_dir/tmp when a rename from it into music_dir works, so os.replace is atomic.
+
+        Comparing st_dev is not enough: systemd ReadWritePaths= bind-mounts each path
+        separately, and rename() across bind mounts fails with EXDEV on one filesystem.
+        """
         shared = self.config.server.data_dir / "tmp"
         shared.mkdir(parents=True, exist_ok=True)
-        if shared.stat().st_dev == user.music_dir.stat().st_dev:
+        if _can_rename(shared, user.music_dir):
             return shared
         own = user.music_dir / TMP_DIR_NAME
         own.mkdir(exist_ok=True)

@@ -57,6 +57,40 @@ def queue_job(env, user="wick", **kw):
     return env.store.claim_next()
 
 
+def test_tmp_dir_is_shared_when_rename_works(env):
+    worker = env.make_worker()
+    assert worker._tmp_dirs["wick"] == env.tmp_dir
+    assert not any(p.name.startswith(".wyc-rename-probe") for p in env.music.iterdir())
+    assert list(env.tmp_dir.iterdir()) == []
+
+
+async def test_tmp_dir_falls_back_when_rename_crosses_mounts(env, monkeypatch):
+    # systemd ReadWritePaths= bind-mounts data_dir and music_dir separately: both report
+    # the same st_dev, but rename() between them fails with EXDEV (seen on the NAS).
+    import errno
+    import os
+    from pathlib import Path
+
+    real_replace = os.replace
+
+    def replace(src, dst):
+        if Path(src).parent == env.tmp_dir:
+            raise OSError(errno.EXDEV, "Invalid cross-device link")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", replace)
+    worker = env.make_worker()
+    own = env.music / ".wyc-music-streaming-tmp"
+    assert worker._tmp_dirs["wick"] == own
+    assert list(env.tmp_dir.iterdir()) == []
+
+    job = queue_job(env)
+    await worker.process(job)
+    assert env.store.get(job.id).status == "done"
+    assert (env.music / "Linkin Park/Meteora/Numb.m4a").exists()
+    assert list(own.iterdir()) == []
+
+
 async def test_job_done_moves_tags_and_notifies(env):
     worker = env.make_worker()
     q = env.events.subscribe("wick")
