@@ -1,5 +1,5 @@
 # Copy to /etc/wyc-music-streaming/config.toml (NOT into git; this repo is public).
-#   sudo install -m 640 -o root -g wyc-music-streaming config.example.toml /etc/wyc-music-streaming/config.toml
+#   sudo install -m 640 -o root -g wick config.example.toml /etc/wyc-music-streaming/config.toml
 
 [server]
 host = "127.0.0.1"          # must stay loopback; tailscale serve is the only way in
@@ -10,7 +10,7 @@ dev = false
 
 [jellyfin]
 url = "http://127.0.0.1:8096"
-api_key_file = "/etc/wyc-music-streaming/jellyfin.key"   # chmod 640 root:wyc-music-streaming
+api_key_file = "/etc/wyc-music-streaming/jellyfin.key"   # chmod 640 root:wick
 
 [download]
 concurrency = 2

@@ -136,7 +136,7 @@ dev = false
 
 [jellyfin]
 url = "http://127.0.0.1:8096"
-api_key_file = "/etc/wyc-music-streaming/jellyfin.key"   # chmod 640 root:wyc-music-streaming
+api_key_file = "/etc/wyc-music-streaming/jellyfin.key"   # chmod 640 root:wick
 
 [download]
 concurrency = 2
@@ -457,7 +457,7 @@ The app reads host and port from the validated config. The loopback check in con
   - `paths.safe_resolve`: `..`, absolute paths, symlinks out of the root
   - `auth.resolve_user`: header present / missing / unknown, dev mode
   - config validation
-  - name sanitizing and the ` (2)` collision rule
+  - name sanitizing (whitespace → `_`) and the `_(2)` collision rule
 - **Integration (pytest + tmp dirs):**
   - worker with yt-dlp mocked: job flow queued → done, file moved, tags written, duplicate skipped, crash recovery
   - library scan and delete
@@ -481,10 +481,10 @@ The app reads host and port from the validated config. The loopback check in con
    - Stack: Deno 2.9.8, uv 0.13.7, Python 3.12, `yt-dlp[default]`.
    - yt-dlp reported `JS runtimes: deno-2.9.8`.
    - Downloaded format 140 (m4a, 2.89 MiB) successfully.
-2. **`tailscale serve` with UFW.** Not yet tested. Check that `https://<nas>.ts.net` opens from another device. If it does not, allow `443` on `tailscale0`.
+2. ~~`tailscale serve` with UFW~~: **verified 2026-11-06**. `https://<nas>.<tailnet>.ts.net` opens from another tailnet device with no UFW change.
 3. ~~Tailscale version~~: **verified**. Version 1.98.4 supports `tailscale serve --bg`.
 4. **Node on 20.04.** Not yet tested. Check that `nvm install --lts` gives a working Node (glibc 2.31).
-5. **ffmpeg.** Not confirmed installed. Check with `command -v ffmpeg`.
+5. ~~ffmpeg~~: **verified 2026-11-06**. ffmpeg 4.2.7 from the Ubuntu 20.04 repo. Stream copy to m4a works.
 6. ~~Jellyfin version ≥ 10.9~~: **verified 2026-11-05**. Version 10.11.8.
 7. ~~ytmusicapi without login~~: **verified 2026-11-05** on the NAS.
    - `search(filter="albums")` returned Meteora first, with `year` and `browseId`.
@@ -493,6 +493,17 @@ The app reads host and port from the validated config. The loopback check in con
 8. ~~Same file paths in Jellyfin~~: **verified 2026-11-05**. Each user has their own library, and both match the `music_dir` values in config:
    - "Wick Music" → `/home/wick/share/wick/music`
    - "Safeena Music" → `/home/wick/share/safeena/music`
+9. **First deploy and smoke test: done 2026-11-06** (plan 1, Task 15), with `app/deploy/nas-setup.sh`.
+   - `check-nas.sh`: no FAIL. `systemctl status wyc-music-streaming`: active (running).
+   - `GET /api/me` over `https://<nas>.<tailnet>.ts.net` from another tailnet device: 200 with the right user.
+   - Unknown `Tailscale-User-Login`: 403. `curl http://<lan-ip>:8097`: connection refused.
+   - Search "numb linkin park": 10 results; the first one cleaned to `Numb` / `Linkin Park`.
+   - Download job: done in about 9 s. File `Linkin_Park/Singles/Numb.m4a`, mode `664`, owner `wyc-music-streaming`, group `wick`. The track shows in Jellyfin.
+   - Found and fixed during the deploy:
+     - `EXDEV` on the final move: systemd `ReadWritePaths=` bind-mounts `/var/lib/wyc-music-streaming` and `/home/wick/share` separately, so the worker now probes a real rename (see §6.4) and uses `music_dir/.wyc-music-streaming-tmp` on the NAS.
+     - `config.toml` and `jellyfin.key` use group `wick`. There is no `wyc-music-streaming` group, because the service user is created with `--gid wick`.
+     - File and folder names use `_` for spaces (§6.4 step 5), as the owner asked.
+   - Service start takes about 5 s (it scans the music folders first). Wait for it before the first request.
 
 ## 12. Later (not in this version)
 

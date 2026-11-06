@@ -21,6 +21,15 @@ Never use dev mode on the NAS.
 
 ## NAS: one-time setup
 
+Quick way: run steps 2–7 with one script. It asks for the Tailscale logins and the Jellyfin key, and is safe to run again:
+
+```
+curl -fsSLO https://raw.githubusercontent.com/Worawit-cs/WYC-music-streaming/main/app/deploy/nas-setup.sh
+bash nas-setup.sh          # as wick, not with sudo
+```
+
+The manual steps:
+
 1. Preflight: `bash app/deploy/check-nas.sh` (from a clone, or after step 4).
 2. Packages and tools (system-wide, so the service user can run them):
 
@@ -48,11 +57,11 @@ Never use dev mode on the NAS.
 5. Config and Jellyfin key (Jellyfin Dashboard → API Keys → +):
 
    ```
-   sudo install -m 640 -o root -g wyc-music-streaming \
+   sudo install -m 640 -o root -g wick \
      /opt/wyc-music-streaming/repo/app/deploy/config.example.toml /etc/wyc-music-streaming/config.toml
    sudo nano /etc/wyc-music-streaming/config.toml      # set real tailscale_login values
    echo 'PASTE-KEY-HERE' | sudo tee /etc/wyc-music-streaming/jellyfin.key >/dev/null
-   sudo chown root:wyc-music-streaming /etc/wyc-music-streaming/jellyfin.key
+   sudo chown root:wick /etc/wyc-music-streaming/jellyfin.key
    sudo chmod 640 /etc/wyc-music-streaming/jellyfin.key
    ```
 

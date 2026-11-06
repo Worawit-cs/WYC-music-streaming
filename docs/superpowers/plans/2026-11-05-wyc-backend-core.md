@@ -3525,7 +3525,7 @@ WantedBy=timers.target
 
 ```toml
 # Copy to /etc/wyc-music-streaming/config.toml (NOT into git; this repo is public).
-#   sudo install -m 640 -o root -g wyc-music-streaming config.example.toml /etc/wyc-music-streaming/config.toml
+#   sudo install -m 640 -o root -g wick config.example.toml /etc/wyc-music-streaming/config.toml
 
 [server]
 host = "127.0.0.1"          # must stay loopback; tailscale serve is the only way in
@@ -3536,7 +3536,7 @@ dev = false
 
 [jellyfin]
 url = "http://127.0.0.1:8096"
-api_key_file = "/etc/wyc-music-streaming/jellyfin.key"   # chmod 640 root:wyc-music-streaming
+api_key_file = "/etc/wyc-music-streaming/jellyfin.key"   # chmod 640 root:wick
 
 [download]
 concurrency = 2
@@ -3662,11 +3662,11 @@ Never use dev mode on the NAS.
 5. Config and Jellyfin key (Jellyfin Dashboard → API Keys → +):
 
    ```
-   sudo install -m 640 -o root -g wyc-music-streaming \
+   sudo install -m 640 -o root -g wick \
      /opt/wyc-music-streaming/repo/app/deploy/config.example.toml /etc/wyc-music-streaming/config.toml
    sudo nano /etc/wyc-music-streaming/config.toml      # set real tailscale_login values
    echo 'PASTE-KEY-HERE' | sudo tee /etc/wyc-music-streaming/jellyfin.key >/dev/null
-   sudo chown root:wyc-music-streaming /etc/wyc-music-streaming/jellyfin.key
+   sudo chown root:wick /etc/wyc-music-streaming/jellyfin.key
    sudo chmod 640 /etc/wyc-music-streaming/jellyfin.key
    ```
 
