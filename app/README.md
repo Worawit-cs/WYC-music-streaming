@@ -49,6 +49,8 @@ The manual steps:
    curl -LsSf https://astral.sh/uv/install.sh | sudo env UV_INSTALL_DIR=/usr/local/bin sh
    curl -fsSL https://deno.land/install.sh | sudo env DENO_INSTALL=/usr/local sh -s -- -y --no-modify-path
    deno --version
+   curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | bash   # as wick, no sudo
+   source ~/.nvm/nvm.sh && nvm install --lts && node --version
    ```
 
 3. Service user and folders:

@@ -31,6 +31,16 @@ fi
 /usr/local/bin/uv --version
 /usr/local/bin/deno --version | head -1
 
+step "2b. Node for the frontend build (nvm, as $USER)"
+export NVM_DIR="$HOME/.nvm"
+if [[ ! -s $NVM_DIR/nvm.sh ]]; then
+  curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | PROFILE=/dev/null bash
+fi
+# shellcheck source=/dev/null
+source "$NVM_DIR/nvm.sh"
+nvm install --lts
+node --version
+
 step "3. Service user and folders"
 getent group "$GROUP" >/dev/null || die "group '$GROUP' does not exist"
 if ! id "$SVC_USER" >/dev/null 2>&1; then
