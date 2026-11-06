@@ -41,5 +41,11 @@ def test_playlist_title_is_default_album():
     assert got == Suggested("Some Phonk Track", "PhonkChannel", "Phonk Mix")
 
 
+def test_title_first_when_right_side_is_the_channel():
+    # Real YouTube title seen in a dev run: "Title – Artist", uploaded by the artist.
+    got = clean("Numb (Official Music Video) [4K UPGRADE] – Linkin Park", "Linkin Park")
+    assert got == Suggested("Numb", "Linkin Park", "Singles")
+
+
 def test_empty_values_get_fallbacks():
     assert clean("", "") == Suggested("Unknown", "Unknown Artist", "Singles")

@@ -57,7 +57,11 @@ def clean(
         if len(parts) == 2:
             left, right = parts[0].strip(), parts[1].strip()
             if not a:
-                a, t = left, right
+                ch = clean_channel(channel).lower()
+                if ch and right.lower() == ch and left.lower() != ch:
+                    a, t = right, left  # "Title – Artist" uploaded by the artist
+                else:
+                    a, t = left, right
             elif left.lower() == a.lower():
                 t = right
     if not a:
