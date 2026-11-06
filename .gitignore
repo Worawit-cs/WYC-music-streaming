@@ -1,3 +1,13 @@
 *.log
 *.tmp
 .env
+
+# WYC-music-streaming app
+app/backend/.venv/
+__pycache__/
+.pytest_cache/
+app/frontend/node_modules/
+app/frontend/build/
+# never commit real config or keys (public repo)
+config.toml
+*.key
