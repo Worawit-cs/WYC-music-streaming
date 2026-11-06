@@ -13,8 +13,12 @@ from wyc_music_streaming.paths import (
     ("raw", "expected"),
     [
         ("Numb", "Numb"),
-        ('AC/DC: "Back" <In> Black?', "ACDC Back In Black"),
+        ('AC/DC: "Back" <In> Black?', "ACDC_Back_In_Black"),
         ("  spaced  ", "spaced"),
+        ("Linkin Park", "Linkin_Park"),
+        ("a  \t b", "a_b"),
+        ("เพลง ไทย", "เพลง_ไทย"),
+        ("x" * 119 + " y", "x" * 119),
         ("..", "Unknown"),
         ("", "Unknown"),
         ("a\x00b\nc", "abc"),
@@ -58,12 +62,13 @@ def test_unique_path(tmp_path):
     p = tmp_path / "a.m4a"
     assert unique_path(p) == p
     p.touch()
-    assert unique_path(p) == tmp_path / "a (2).m4a"
-    (tmp_path / "a (2).m4a").touch()
-    assert unique_path(p) == tmp_path / "a (3).m4a"
+    assert unique_path(p) == tmp_path / "a_(2).m4a"
+    (tmp_path / "a_(2).m4a").touch()
+    assert unique_path(p) == tmp_path / "a_(3).m4a"
 
 
 def test_track_filename():
     assert track_filename("Numb", "m4a") == "Numb.m4a"
-    assert track_filename("Faint", "m4a", 7) == "07 Faint.m4a"
+    assert track_filename("Faint", "m4a", 7) == "07_Faint.m4a"
+    assert track_filename("Smooth Operator", "opus") == "Smooth_Operator.opus"
     assert track_filename("a/b", "opus") == "ab.opus"

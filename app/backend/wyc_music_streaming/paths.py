@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 FORBIDDEN = re.compile(r'[/\\:*?"<>|\x00-\x1f]')
+WHITESPACE = re.compile(r"\s+")
 MAX_NAME = 120
 
 
@@ -13,9 +14,10 @@ class UnsafePath(ValueError):
 
 
 def sanitize_name(name: str, fallback: str = "Unknown") -> str:
+    """Make one safe path component. Runs of whitespace become a single "_"."""
     cleaned = FORBIDDEN.sub("", name).strip().strip(".").strip()
     cleaned = cleaned[:MAX_NAME].strip()
-    return cleaned or fallback
+    return WHITESPACE.sub("_", cleaned) or fallback
 
 
 def safe_resolve(root: Path, rel: str) -> Path:
@@ -32,7 +34,7 @@ def unique_path(path: Path) -> Path:
         return path
     n = 2
     while True:
-        candidate = path.with_name(f"{path.stem} ({n}){path.suffix}")
+        candidate = path.with_name(f"{path.stem}_({n}){path.suffix}")
         if not candidate.exists():
             return candidate
         n += 1
@@ -41,5 +43,5 @@ def unique_path(path: Path) -> Path:
 def track_filename(title: str, ext: str, track_no: int | None = None) -> str:
     base = sanitize_name(title)
     if track_no:
-        base = f"{track_no:02d} {base}"
+        base = f"{track_no:02d}_{base}"
     return f"{base}.{ext}"

@@ -90,7 +90,7 @@ def test_download_flow(client):
 
     final_path = download_numb(client)
 
-    assert final_path == "Linkin Park/Singles/Numb.m4a"
+    assert final_path == "Linkin_Park/Singles/Numb.m4a"
     artists = client.get("/api/library").json()["artists"]
     assert artists[0]["artist"] == "Linkin Park"
     assert artists[0]["albums"][0]["tracks"][0]["path"] == final_path

@@ -56,7 +56,7 @@ FastAPI (WYC-music-streaming, systemd)
    └─ /api/boxes      Jellyfin playlists of this user
         │ writes files
         ▼
-/home/wick/share/<user>/music/<Artist>/<Album>/<NN Title>.m4a
+/home/wick/share/<user>/music/<Artist>/<Album>/<NN_Title>.m4a
         │
         ▼
 Jellyfin  POST /Library/Refresh  (API key, debounced)
@@ -230,7 +230,7 @@ N = `concurrency` asyncio tasks. Each task takes the oldest `queued` job and run
 1. Format: `bestaudio[ext=m4a]/bestaudio`.
 2. Output: `data_dir/tmp/<job_id>.<ext>`.
    - `/var/lib` and `/home` are on the same partition on this machine.
-   - At startup, check that `tmp` and every `music_dir` share a filesystem (`st_dev`). If not, use `music_dir/.wyc-music-streaming-tmp`.
+   - At startup, probe with a real rename of an empty hidden file from `tmp` into every `music_dir`. If it fails, use `music_dir/.wyc-music-streaming-tmp`. Comparing `st_dev` is not enough: systemd `ReadWritePaths=` bind-mounts each path separately, and `rename()` across bind mounts fails with `EXDEV` (seen on the NAS, so in production the fallback is used).
 3. Postprocessors:
    - Convert the thumbnail to jpg.
    - Embed the thumbnail.
@@ -240,9 +240,9 @@ N = `concurrency` asyncio tasks. Each task takes the oldest `queued` job and run
    - track number and year, when the job has them
    - comment `youtube:<video_id>`, used for duplicate detection
    - cover: if `cover_url` is set, fetch it (httpx, 10 s timeout) and embed it in place of the video thumbnail. If the fetch fails, keep the video thumbnail.
-5. Move to `music_dir/<Artist>/<Album>/<Title>.<ext>`, or `<NN> <Title>.<ext>` when `track_no` is set (`NN` = 2 digits):
-   - sanitize names: remove `/\:*?"<>|`, trim, max 120 chars
-   - if the name exists, add ` (2)`
+5. Move to `music_dir/<Artist>/<Album>/<Title>.<ext>`, or `<NN>_<Title>.<ext>` when `track_no` is set (`NN` = 2 digits):
+   - sanitize names: remove `/\:*?"<>|`, trim, max 120 chars, then replace each run of whitespace with `_` (example: `Linkin_Park/Singles/Numb.m4a`)
+   - if the name exists, add `_(2)`
    - use `os.replace`
 6. Status → `done`. Update the library index. Schedule a Jellyfin refresh. Emit an SSE event.
 7. If the job has a `box_id`: insert a `box_pending` row (§6.9).

@@ -87,7 +87,7 @@ async def test_tmp_dir_falls_back_when_rename_crosses_mounts(env, monkeypatch):
     job = queue_job(env)
     await worker.process(job)
     assert env.store.get(job.id).status == "done"
-    assert (env.music / "Linkin Park/Meteora/Numb.m4a").exists()
+    assert (env.music / "Linkin_Park/Meteora/Numb.m4a").exists()
     assert list(own.iterdir()) == []
 
 
@@ -100,7 +100,7 @@ async def test_job_done_moves_tags_and_notifies(env):
 
     done = env.store.get(job.id)
     assert done.status == "done"
-    assert done.final_path == "Linkin Park/Meteora/Numb.m4a"
+    assert done.final_path == "Linkin_Park/Meteora/Numb.m4a"
     final = env.music / done.final_path
     tags = read_tags(final)
     assert (tags["title"], tags["album_artist"], tags["video_id"]) == ("Numb", "Linkin Park", "kXYiU_JCYtU")
@@ -127,7 +127,7 @@ async def test_album_job_uses_track_number_and_cover_url(env):
     await worker.process(job)
 
     done = env.store.get(job.id)
-    assert done.final_path == "Linkin Park/Meteora/07 Faint.m4a"
+    assert done.final_path == "Linkin_Park/Meteora/07_Faint.m4a"
     final = env.music / done.final_path
     assert MP4(final)["covr"][0] == b"COVER"
     assert read_tags(final)["track_no"] == 7
@@ -146,11 +146,11 @@ async def test_cover_fetch_failure_falls_back_to_thumbnail(env):
 
 
 async def test_name_collision_adds_suffix(env, make_audio):
-    make_audio(env.music / "Linkin Park" / "Meteora" / "Numb.m4a")
+    make_audio(env.music / "Linkin_Park" / "Meteora" / "Numb.m4a")
     worker = env.make_worker()
     job = queue_job(env)
     await worker.process(job)
-    assert env.store.get(job.id).final_path == "Linkin Park/Meteora/Numb (2).m4a"
+    assert env.store.get(job.id).final_path == "Linkin_Park/Meteora/Numb_(2).m4a"
 
 
 async def test_download_error_marks_failed_and_cleans_tmp(env):
