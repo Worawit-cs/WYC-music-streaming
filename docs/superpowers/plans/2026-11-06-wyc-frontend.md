@@ -1733,8 +1733,17 @@ Expected: `Tests  6 passed (6)`.
 	let picked = $state<string[]>([]);
 	let batchAlbum = $state('');
 
+	let editorBox = $state<HTMLElement | null>(null);
+
 	const placeholder = $derived(TABS.find((t) => t.id === tab)!.placeholder);
 	const isPlaylist = $derived(response?.kind === 'playlist');
+
+	// The editor sits above the results: bring it into view when a card far down opens it.
+	$effect(() => {
+		if (!editing || !editorBox) return;
+		const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+		editorBox.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+	});
 
 	function stateOf(videoId: string) {
 		return cardState(videoId, library.videoIds, jobs.list);
@@ -1833,13 +1842,15 @@ Expected: `Tests  6 passed (6)`.
 		{/if}
 
 		{#if editing}
-			<EditPanel
-				draft={editing}
-				busy={sending}
-				error={sendError}
-				onsubmit={(d) => void send([toJobItem(d)])}
-				oncancel={() => (editing = null)}
-			/>
+			<div bind:this={editorBox} class="scroll-mt-4">
+				<EditPanel
+					draft={editing}
+					busy={sending}
+					error={sendError}
+					onsubmit={(d) => void send([toJobItem(d)])}
+					oncancel={() => (editing = null)}
+				/>
+			</div>
 		{/if}
 
 		{#if response && isPlaylist}
