@@ -155,3 +155,13 @@ Frontend:
 - Modify: `lib/types.ts`, `lib/api.ts`, `lib/format.ts`, `lib/jobs.svelte.ts`,
   `lib/components/CassetteDeck.svelte`, `lib/components/AlbumGrid.svelte`,
   `routes/+layout.svelte`, `routes/library/+page.svelte`, and their tests
+
+Plan: `docs/superpowers/plans/2026-11-07-rename-and-download-feedback.md`.
+
+## 8. Deploy result (2026-11-07)
+
+Deployed on the NAS with `update.sh` (frontend build about 14 s); the existing `app.db` got the
+`stage` column on the first start. The owner checked all items on the phone and laptop:
+deck stages while downloading, the dialog when the queue emptied (close, Esc, open library),
+an album rename ("Off_the_Wall" → "Off the Wall"), an artist rename ("linkinpark" → "Linkin Park"),
+an artist merge into "The Weeknd" with the merge notice, and the 409 message while a job waited.

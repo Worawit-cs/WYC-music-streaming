@@ -509,7 +509,10 @@ The app reads host and port from the validated config. The loopback check in con
     - Checked on the phone and laptop: Cassette UI and fonts, search and download, queue shows done with the path,
       library delete, reload on `/library` (SPA fallback), `/api/events` SSE through `tailscale serve` (connect line and 15 s pings arrive at once).
     - Plan 2.5 (search pages, suggestions, artist/album combobox, album view) deployed the same day; see the addendum §8.
-11. **Open: the download progress bar does not move** (found 2026-11-07, fix in the next work).
+11. ~~The download progress bar does not move~~: **fixed 2026-11-07** (plan 2.6, see
+    `2026-11-07-rename-and-download-feedback-design.md`). The deck now shows the stages
+    finding → downloading → processing, and 100 % is never dropped. Checked on the NAS by the owner.
+    Notes from the finding:
     - Seen: the cassette deck stays near 0 % while a track downloads, then goes idle when the job is done.
     - Root cause (measured on the dev machine with yt-dlp 2026.10.26, `Numb`, 3.0 MB, format 140 over `https`):
       about 2.2 s pass before the first byte (extraction), then all 12 `downloading` hook calls arrive within 0.13 s.
