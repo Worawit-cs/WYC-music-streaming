@@ -75,6 +75,27 @@ def write_tags(path: Path, tags: TagData) -> None:
     raise ValueError(f"unsupported container: {ext}")
 
 
+def retag(
+    path: Path, *, artist: str | None = None, album: str | None = None, album_artist: str | None = None
+) -> None:
+    """Change only the given text tags (any container mutagen's easy interface knows: m4a, opus/ogg, mp3, flac).
+
+    Title, track number, year, cover and the youtube: comment stay as they are.
+    """
+    try:
+        f = MutagenFile(path, easy=True)
+    except (MutagenError, OSError) as exc:
+        raise ValueError(f"cannot open {path.name} for tagging: {exc}") from exc
+    if f is None:
+        raise ValueError(f"cannot open {path.name} for tagging")
+    if f.tags is None:
+        f.add_tags()
+    for key, value in (("artist", artist), ("album", album), ("albumartist", album_artist)):
+        if value is not None:
+            f[key] = [value]
+    f.save()
+
+
 def _parse_track(value: str | None) -> int | None:
     if not value:
         return None

@@ -2,7 +2,7 @@ import pytest
 from mutagen.mp4 import MP4
 from mutagen.oggopus import OggOpus
 
-from wyc_music_streaming.tags import TagData, read_tags, write_tags
+from wyc_music_streaming.tags import TagData, read_tags, retag, write_tags
 
 FULL = TagData(
     title="Faint", artist="Linkin Park", album="Meteora", album_artist="Linkin Park",
@@ -58,3 +58,36 @@ def test_read_non_audio_returns_empty(tmp_path):
 def test_write_unsupported_container(make_audio, tmp_path):
     with pytest.raises(ValueError, match="unsupported container"):
         write_tags(make_audio(tmp_path / "a.mp3"), FULL)
+
+
+@pytest.mark.parametrize("ext", [".m4a", ".opus"])
+def test_retag_changes_only_the_given_fields(make_audio, tmp_path, ext):
+    path = make_audio(tmp_path / f"a{ext}")
+    write_tags(path, FULL)
+    retag(path, album="Meteora (Live)")
+    got = read_tags(path)
+    assert got["album"] == "Meteora (Live)"
+    assert (got["title"], got["artist"], got["album_artist"], got["track_no"], got["video_id"]) == (
+        "Faint", "Linkin Park", "Linkin Park", 7, "kXYiU_JCYtU")
+    retag(path, artist="LP", album_artist="LP")
+    got = read_tags(path)
+    assert (got["artist"], got["album_artist"], got["album"]) == ("LP", "LP", "Meteora (Live)")
+    if ext == ".m4a":
+        assert MP4(path)["covr"][0] == b"COVER"
+    else:
+        assert OggOpus(path)["metadata_block_picture"]
+
+
+@pytest.mark.parametrize("ext", [".mp3", ".flac"])
+def test_retag_files_added_by_hand(make_audio, tmp_path, ext):
+    path = make_audio(tmp_path / f"a{ext}")
+    retag(path, album="Bad", album_artist="MJ")
+    got = read_tags(path)
+    assert (got["album"], got["album_artist"]) == ("Bad", "MJ")
+
+
+def test_retag_non_audio_raises(tmp_path):
+    p = tmp_path / "x.m4a"
+    p.write_bytes(b"not audio")
+    with pytest.raises(ValueError, match="cannot open"):
+        retag(p, album="x")
