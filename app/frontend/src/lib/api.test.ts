@@ -66,4 +66,13 @@ describe('createApi', () => {
 		const err = await createApi(fn).retryJob(1).catch((e) => e);
 		expect(err.message).toBe('only a failed job can be retried');
 	});
+
+	it('posts a rename', async () => {
+		const { fn, calls } = fakeFetch(200, { moved: 2, merged: true });
+		const body = { kind: 'artist' as const, artist: 'linkinpark', new_name: 'Linkin Park' };
+		const out = await createApi(fn).rename(body);
+		expect(calls[0].url).toBe('/api/library/rename');
+		expect(JSON.parse(String(calls[0].init?.body))).toEqual(body);
+		expect(out).toEqual({ moved: 2, merged: true });
+	});
 });

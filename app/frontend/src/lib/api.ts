@@ -4,6 +4,7 @@ import type {
 	JobItem,
 	LibraryArtist,
 	Me,
+	RenameBody,
 	SearchResponse
 } from './types';
 
@@ -63,6 +64,7 @@ export function createApi(
 		library: () => request<{ artists: LibraryArtist[] }>('GET', '/library'),
 		rescanLibrary: () => request<{ tracks: number }>('POST', '/library/rescan'),
 		deleteTrack: (path: string) => request<void>('DELETE', '/library/track', { path }),
+		rename: (body: RenameBody) => request<{ moved: number; merged: boolean }>('POST', '/library/rename', body),
 		refreshJellyfin: () => request<{ ok: boolean }>('POST', '/jellyfin/refresh')
 	};
 }

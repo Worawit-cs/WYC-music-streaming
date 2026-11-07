@@ -78,5 +78,11 @@ export type LibraryAlbum = { album: string; tracks: LibraryTrack[] };
 
 export type LibraryArtist = { artist: string; albums: LibraryAlbum[] };
 
+/** POST /api/library/rename. album is needed only for kind "album". */
+export type RenameBody = { kind: 'album' | 'artist'; artist: string; album?: string; new_name: string };
+
+/** An existing artist or album that a rename can merge into. */
+export type RenameTarget = { name: string; tracks: number };
+
 /** One row of a Combobox popup. */
 export type ComboOption = { value: string; label: string; hint?: string };

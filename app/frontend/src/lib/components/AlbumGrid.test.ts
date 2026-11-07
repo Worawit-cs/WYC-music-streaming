@@ -37,4 +37,24 @@ describe('AlbumGrid', () => {
 		await fireEvent.click(screen.getByRole('button', { name: 'ลบเลย' }));
 		expect(ondelete).toHaveBeenCalledWith('Sade/Diamond_Life/Smooth_Operator.m4a');
 	});
+
+	it('renames an album from its card and offers the other albums of that artist', async () => {
+		const onrename = vi.fn().mockResolvedValue(undefined);
+		render(AlbumGrid, { cards, ondelete: vi.fn(), onrename });
+		await fireEvent.click(screen.getByRole('button', { name: 'แก้ชื่ออัลบั้ม Meteora' }));
+		const input = screen.getByLabelText('ชื่ออัลบั้มใหม่') as HTMLInputElement;
+		expect(input.value).toBe('Meteora');
+		await fireEvent.focus(input);
+		expect(screen.getAllByRole('option').map((o) => o.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+			'Singles 1 เพลง'
+		]);
+		await fireEvent.input(input, { target: { value: 'Meteora (Live)' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'บันทึก' }));
+		expect(onrename).toHaveBeenCalledWith(cards[1], 'Meteora (Live)');
+	});
+
+	it('has no rename button without onrename', () => {
+		render(AlbumGrid, { cards, ondelete: vi.fn() });
+		expect(screen.queryByRole('button', { name: /แก้ชื่อ/ })).toBeNull();
+	});
 });

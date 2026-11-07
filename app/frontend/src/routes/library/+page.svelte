@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { albumList } from '$lib/albumList';
+	import { albumList, type AlbumCard } from '$lib/albumList';
 	import { api } from '$lib/client';
 	import AlbumGrid from '$lib/components/AlbumGrid.svelte';
+	import RenameForm from '$lib/components/RenameForm.svelte';
 	import TrackRow from '$lib/components/TrackRow.svelte';
 	import { errorText } from '$lib/format';
 	import { library } from '$lib/library.svelte';
 	import { filterLibrary } from '$lib/libraryFilter';
+	import type { RenameBody } from '$lib/types';
 
 	let filter = $state('');
 	let busy = $state<'rescan' | 'jellyfin' | null>(null);
@@ -21,6 +23,23 @@
 
 	const shown = $derived(filterLibrary(library.artists, filter));
 	const cards = $derived(view === 'albums' ? albumList(shown) : []);
+	const allCards = $derived(view === 'albums' ? albumList(library.artists) : []);
+
+	let editingArtist = $state<string | null>(null);
+	const artistCounts = $derived(
+		library.artists.map((a) => ({ name: a.artist, tracks: a.albums.reduce((n, al) => n + al.tracks.length, 0) }))
+	);
+
+	/** Rename on the server, reload the library, and say what happened. Errors go back to the form. */
+	async function rename(body: RenameBody) {
+		const { moved, merged } = await api.rename(body);
+		await library.load();
+		error = null;
+		notice = merged ? `รวมแล้ว ${moved} เพลง` : `เปลี่ยนชื่อแล้ว ${moved} เพลง`;
+	}
+
+	const renameAlbum = (card: AlbumCard, name: string) =>
+		rename({ kind: 'album', artist: card.artist, album: card.album, new_name: name });
 
 	async function remove(path: string) {
 		await api.deleteTrack(path);
@@ -81,7 +100,7 @@
 	{:else if shown.length === 0}
 		<p class="text-muted">{filter.trim() ? 'ไม่พบเพลงที่ตรงกับคำค้น' : 'คลังยังว่าง ลองโหลดเพลงจากหน้าค้นหา'}</p>
 	{:else if view === 'albums'}
-		<AlbumGrid {cards} ondelete={remove} />
+		<AlbumGrid {cards} {allCards} ondelete={remove} onrename={renameAlbum} />
 	{:else}
 		<div class="grid gap-6 md:grid-cols-[200px_1fr]">
 			<nav class="hidden md:block" aria-label="ศิลปิน">
@@ -94,7 +113,32 @@
 			<div class="min-w-0 space-y-8">
 				{#each shown as artist, i (artist.artist)}
 					<section id={`artist-${i}`} class="space-y-3">
-						<h2 class="text-xl font-bold">{artist.artist}</h2>
+						<div class="flex flex-wrap items-center gap-2">
+							<h2 class="min-w-0 text-xl font-bold break-words">{artist.artist}</h2>
+							{#if editingArtist !== artist.artist}
+								<button
+									class="btn"
+									aria-label={`แก้ชื่อศิลปิน ${artist.artist}`}
+									onclick={() => (editingArtist = artist.artist)}
+								>
+									แก้ชื่อ
+								</button>
+							{/if}
+						</div>
+						{#if editingArtist === artist.artist}
+							<div class="card p-4">
+								<RenameForm
+									kind="artist"
+									oldName={artist.artist}
+									existing={artistCounts.filter((a) => a.name !== artist.artist)}
+									onsubmit={async (name) => {
+										await rename({ kind: 'artist', artist: artist.artist, new_name: name });
+										editingArtist = null;
+									}}
+									oncancel={() => (editingArtist = null)}
+								/>
+							</div>
+						{/if}
 						{#each artist.albums as album (album.album)}
 							<article class="card p-4">
 								<h3 class="font-semibold">
