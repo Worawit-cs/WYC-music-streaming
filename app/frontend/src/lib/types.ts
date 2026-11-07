@@ -18,6 +18,8 @@ export type SearchResponse = {
 	kind: 'search' | 'url' | 'playlist';
 	playlist_title: string | null;
 	results: SearchResult[];
+	page: number;
+	has_more: boolean;
 };
 
 export type JobStatus = 'queued' | 'downloading' | 'done' | 'failed' | 'cancelled';
@@ -71,3 +73,6 @@ export type LibraryTrack = {
 export type LibraryAlbum = { album: string; tracks: LibraryTrack[] };
 
 export type LibraryArtist = { artist: string; albums: LibraryAlbum[] };
+
+/** One row of a Combobox popup. */
+export type ComboOption = { value: string; label: string; hint?: string };

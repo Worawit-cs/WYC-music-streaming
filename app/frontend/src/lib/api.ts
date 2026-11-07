@@ -26,8 +26,9 @@ export function createApi(
 	fetchFn: FetchFn = (input, init) => fetch(input, init),
 	onDenied: (info: DeniedInfo) => void = () => {}
 ) {
-	async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+	async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
 		const init: RequestInit = { method };
+		if (signal) init.signal = signal;
 		if (body !== undefined) {
 			init.headers = { 'Content-Type': 'application/json' };
 			init.body = JSON.stringify(body);
@@ -51,7 +52,10 @@ export function createApi(
 
 	return {
 		me: () => request<Me>('GET', '/me'),
-		search: (q: string) => request<SearchResponse>('GET', `/search?q=${encodeURIComponent(q)}`),
+		search: (q: string, page = 1) =>
+			request<SearchResponse>('GET', `/search?q=${encodeURIComponent(q)}&page=${page}`),
+		suggest: (q: string, signal?: AbortSignal) =>
+			request<{ suggestions: string[] }>('GET', `/suggest?q=${encodeURIComponent(q)}`, undefined, signal),
 		createJobs: (items: JobItem[]) => request<CreateJobsResponse>('POST', '/jobs', { items }),
 		listJobs: () => request<{ jobs: Job[] }>('GET', '/jobs'),
 		cancelJob: (id: number) => request<void>('DELETE', `/jobs/${id}`),

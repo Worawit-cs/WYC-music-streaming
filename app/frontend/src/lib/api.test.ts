@@ -14,11 +14,26 @@ function fakeFetch(status: number, body: unknown) {
 }
 
 describe('createApi', () => {
-	it('encodes the search query', async () => {
-		const { fn, calls } = fakeFetch(200, { kind: 'search', playlist_title: null, results: [] });
+	it('encodes the search query and asks for page 1 by default', async () => {
+		const { fn, calls } = fakeFetch(200, { kind: 'search', playlist_title: null, results: [], page: 1, has_more: true });
 		const out = await createApi(fn).search('numb linkin park');
-		expect(calls[0].url).toBe('/api/search?q=numb%20linkin%20park');
+		expect(calls[0].url).toBe('/api/search?q=numb%20linkin%20park&page=1');
 		expect(out.kind).toBe('search');
+	});
+
+	it('asks for another search page', async () => {
+		const { fn, calls } = fakeFetch(200, { kind: 'search', playlist_title: null, results: [], page: 3, has_more: true });
+		await createApi(fn).search('numb', 3);
+		expect(calls[0].url).toBe('/api/search?q=numb&page=3');
+	});
+
+	it('passes the abort signal to suggest', async () => {
+		const { fn, calls } = fakeFetch(200, { suggestions: ['เพลงไทย'] });
+		const ctrl = new AbortController();
+		const out = await createApi(fn).suggest('เพลง', ctrl.signal);
+		expect(calls[0].url).toBe(`/api/suggest?q=${encodeURIComponent('เพลง')}`);
+		expect(calls[0].init?.signal).toBe(ctrl.signal);
+		expect(out.suggestions).toEqual(['เพลงไทย']);
 	});
 
 	it('posts jobs as JSON', async () => {
