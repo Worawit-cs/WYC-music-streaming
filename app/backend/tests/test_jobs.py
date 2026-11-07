@@ -140,3 +140,14 @@ def test_old_database_gets_stage_column(tmp_path):
     assert s.get(1).stage == "processing"
     s.close()
     JobStore(path).close()  # opening again must not try to add the column twice
+
+
+def test_has_active_for_artist_and_album(store):
+    a, b = store.add("wick", [item("aaaaaaaaaaa"), item("bbbbbbbbbbb", )])
+    assert store.has_active_for("wick", "Linkin Park")
+    assert store.has_active_for("wick", "Linkin Park", "Meteora")
+    assert not store.has_active_for("wick", "Linkin Park", "Hybrid Theory")
+    assert not store.has_active_for("safeena", "Linkin Park")
+    store.finish(a.id, "x.m4a")
+    store.fail(b.id, "x")
+    assert not store.has_active_for("wick", "Linkin Park")

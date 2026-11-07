@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
@@ -20,6 +20,7 @@ from .config import User
 from .events import format_sse
 from .jobs import NewJob
 from .paths import UnsafePath
+from .rename import PartialRename, rename
 from .search import MAX_PAGES, SEARCH_TIMEOUT, search
 from .suggest import fetch_suggestions
 
@@ -54,6 +55,13 @@ class JobsRequest(BaseModel):
 
 class TrackRef(BaseModel):
     path: str = Field(min_length=1, max_length=1000)
+
+
+class RenameRequest(BaseModel):
+    kind: Literal["album", "artist"]
+    artist: str = Field(min_length=1, max_length=300)
+    album: str | None = Field(default=None, max_length=300)
+    new_name: str = Field(min_length=1, max_length=300)
 
 
 @router.get("/me")
@@ -150,6 +158,31 @@ async def rescan_library(request: Request, user: UserDep) -> dict[str, int]:
     count = await run_in_threadpool(st.library.rescan, user.name)
     st.events.publish(user.name, "library", {"rescan": True})
     return {"tracks": count}
+
+
+@router.post("/library/rename")
+async def rename_route(request: Request, user: UserDep, body: RenameRequest) -> dict[str, Any]:
+    st = request.app.state
+    album = body.album if body.kind == "album" else None
+    if st.store.has_active_for(user.name, body.artist, album):
+        what = "อัลบั้ม" if album is not None else "ศิลปิน"
+        raise HTTPException(status_code=409, detail=f"มีเพลงกำลังโหลดเข้า{what}นี้ รอคิวหมดก่อน")
+    try:
+        result = await run_in_threadpool(
+            rename, st.library, user, kind=body.kind, artist=body.artist, album=album, new_name=body.new_name
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    except LookupError:
+        raise HTTPException(status_code=404, detail="ไม่พบเพลงที่จะเปลี่ยนชื่อ") from None
+    except PartialRename as exc:
+        log.warning("rename for %s stopped midway: %s", user.name, exc)
+        st.refresher.schedule()
+        st.events.publish(user.name, "library", {"renamed": exc.moved})
+        raise HTTPException(status_code=500, detail=str(exc)) from None
+    st.refresher.schedule()
+    st.events.publish(user.name, "library", {"renamed": result.moved})
+    return {"moved": result.moved, "merged": result.merged}
 
 
 @router.delete("/library/track", status_code=204)

@@ -29,6 +29,18 @@ def safe_resolve(root: Path, rel: str) -> Path:
     return target
 
 
+def remove_empty_parents(root: Path, start: Path) -> None:
+    """Remove start and its parents while they are empty, stopping at root (root stays)."""
+    root_resolved = root.resolve()
+    folder = start
+    while folder != root_resolved and folder.is_relative_to(root_resolved):
+        try:
+            folder.rmdir()  # only succeeds when empty
+        except OSError:
+            break
+        folder = folder.parent
+
+
 def unique_path(path: Path) -> Path:
     if not path.exists():
         return path

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import User
-from .paths import safe_resolve
+from .paths import remove_empty_parents, safe_resolve
 from .tags import read_tags
 
 AUDIO_EXTS = frozenset({".m4a", ".mp3", ".opus", ".flac", ".ogg"})
@@ -114,13 +114,7 @@ class Library:
             raise FileNotFoundError(rel_path)
         target.unlink()
         root_resolved = root.resolve()
-        parent = target.parent
-        while parent != root_resolved and parent.is_relative_to(root_resolved):
-            try:
-                parent.rmdir()  # only succeeds when empty
-            except OSError:
-                break
-            parent = parent.parent
+        remove_empty_parents(root_resolved, target.parent)
         key = target.relative_to(root_resolved).as_posix()
         with self._lock:
             self._tracks[user].pop(key, None)

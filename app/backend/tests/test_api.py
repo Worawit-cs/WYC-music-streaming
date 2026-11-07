@@ -192,3 +192,49 @@ def test_spa_fallback(config, tmp_path):
     assert c.get("/library").text == "<html>app</html>"
     assert c.get("/app.js").text == "js"
     assert c.get("/api/nope").status_code == 404
+
+
+def test_rename_album_and_artist(client):
+    download_numb(client)
+    r = client.post("/api/library/rename", json={
+        "kind": "album", "artist": "Linkin Park", "album": "Singles", "new_name": "Meteora"})
+    assert r.status_code == 200
+    assert r.json() == {"moved": 1, "merged": False}
+    r = client.post("/api/library/rename", json={"kind": "artist", "artist": "Linkin Park", "new_name": "LP"})
+    assert r.json() == {"moved": 1, "merged": False}
+    [artist] = client.get("/api/library").json()["artists"]
+    assert artist["artist"] == "LP"
+    assert artist["albums"][0]["album"] == "Meteora"
+    assert artist["albums"][0]["tracks"][0]["path"] == "LP/Meteora/Numb.m4a"
+    wait_for(lambda: client.jf_calls)
+
+
+def test_rename_errors(client):
+    def post(body):
+        return client.post("/api/library/rename", json=body)
+
+    assert post({"kind": "artist", "artist": "Nobody", "new_name": "X"}).status_code == 404
+    download_numb(client)
+    assert post({"kind": "artist", "artist": "Linkin Park", "new_name": "Linkin Park"}).status_code == 400
+    assert post({"kind": "album", "artist": "Linkin Park", "new_name": "X"}).status_code == 400
+    assert post({"kind": "song", "artist": "Linkin Park", "new_name": "X"}).status_code == 422
+    assert post({"kind": "artist", "artist": "Linkin Park", "new_name": ""}).status_code == 422
+    assert post({"kind": "artist", "artist": "Linkin Park", "new_name": "x" * 301}).status_code == 422
+
+
+def test_rename_blocked_while_a_job_is_active(config, make_audio):
+    def downloader(job, tmp_dir, on_progress, on_stage):
+        return make_audio(tmp_dir / f"{job.id}.m4a"), None
+
+    app = create_app(config, downloader=downloader, extract=lambda t, o: NUMB,
+                     jellyfin_transport=httpx.MockTransport(lambda r: httpx.Response(204)),
+                     suggest_transport=httpx.MockTransport(lambda r: httpx.Response(200, json=["", []])),
+                     start_workers=False)
+    with TestClient(app, headers=WICK) as c:
+        make_audio(config.users["wick"].music_dir / "Linkin_Park" / "Singles" / "Old.m4a")
+        c.post("/api/library/rescan")
+        c.post("/api/jobs", json={"items": [
+            {"video_id": "kXYiU_JCYtU", "title": "Numb", "artist": "Linkin_Park", "album": "Singles"}]})
+        r = c.post("/api/library/rename", json={"kind": "artist", "artist": "Linkin_Park", "new_name": "LP"})
+        assert r.status_code == 409
+        assert "รอคิวหมดก่อน" in r.json()["detail"]

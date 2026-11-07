@@ -122,6 +122,16 @@ class JobStore:
             ).fetchone()
         return row is not None
 
+    def has_active_for(self, user: str, artist: str, album: str | None = None) -> bool:
+        """A queued or downloading job of this user goes to this artist (and album, when given)."""
+        sql = "SELECT 1 FROM jobs WHERE user = ? AND artist = ? AND status IN ('queued','downloading')"
+        params: tuple[Any, ...] = (user, artist)
+        if album is not None:
+            sql += " AND album = ?"
+            params += (album,)
+        with self._lock:
+            return self._db.execute(sql + " LIMIT 1", params).fetchone() is not None
+
     def claim_next(self) -> Job | None:
         with self._lock:
             row = self._db.execute(
