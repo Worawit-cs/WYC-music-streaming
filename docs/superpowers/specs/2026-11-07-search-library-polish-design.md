@@ -35,7 +35,8 @@ The user deletes and downloads again.
 One shared component: a text input with a popup list.
 
 - Props: `value` (bindable string), `options: {value, label, hint?}[]`,
-  `onpick(value)`, `createLabel?` (string or null), plus `label`, `placeholder`, `maxlength`.
+  `onpick(value)`, `createLabel?` (string or null), `filter?` (boolean), `hideLabel?` (boolean),
+  plus `label`, `placeholder`, `maxlength`.
 - The popup opens on focus and on typing. It closes on Esc, on blur, and after a pick.
 - Arrow Up/Down move the active row. Enter picks the active row.
   Enter with no active row does nothing to the list (a form submit still works).
@@ -44,15 +45,17 @@ One shared component: a text input with a popup list.
   Picking it keeps the typed text.
 - ARIA: input `role="combobox"`, `aria-expanded`, `aria-controls`, `aria-activedescendant`;
   list `role="listbox"`; rows `role="option"` with `aria-selected`.
-- The component does not filter. The caller passes the options to show.
+- With `filter`, the component filters the options by label (case-insensitive), but only
+  after the user types. Focus shows every option, so a prefilled "Singles" still lists the
+  artist's albums. Without `filter` (search suggestions), it shows the options as given.
 
 ### 3.2 Tape label editor (`EditPanel.svelte`)
 
-- Artist field: a `Combobox`. Options are the library artists whose name contains
-  the typed text (case-insensitive), with hint "<n> เพลง". Max 8 rows.
-- Album field: a `Combobox`. Options are the albums of the artist in the artist field
-  (exact name, case-insensitive), filtered the same way. Empty list when the artist is new.
-- Both have the create row.
+- Artist field: a `Combobox` with `filter`. Options are all library artists, with hint "<n> เพลง"
+  (`artistOptions` in `lib/libraryOptions.ts`).
+- Album field: a `Combobox` with `filter`. Options are the albums of the artist in the artist field
+  (exact name, case-insensitive; `albumOptions`). Empty list when the artist is new.
+- Both have the create row. The popup scrolls (max height), so there is no row limit.
 - `EditPanel` takes a new prop `artists: LibraryArtist[]` (the library tree).
 
 ### 3.3 Prefill with a library artist
@@ -66,9 +69,10 @@ Pure function `matchArtist(suggested: string, names: string[]): string` in `lib/
    Return `n`.
 3. Else return `suggested` unchanged.
 
-`draftFrom` keeps the YouTube guess. The search page calls `matchArtist` when it opens
-the editor, and when it builds playlist items. When the prefill differs from the guess,
-the artist combobox shows the full guess as the first option, with hint "ชื่อจาก YouTube".
+`draftFrom(result, libraryArtists = [])` calls `matchArtist`. The search page passes the
+library artist names when it opens the editor and when it builds playlist items.
+When the prefill differs from the guess, the search page passes the guess to the editor
+(`youtubeArtist`), and the artist combobox shows it as the first option, hint "ชื่อจาก YouTube".
 
 The names map to one folder: `sanitize_name("The Weeknd")` is `The_Weeknd`,
 and the library reads the name from tags, so the combobox shows "The Weeknd".
@@ -80,8 +84,8 @@ and the library reads the name from tags, so the combobox shows "The Weeknd".
 - Pure function `albumList(artists: LibraryArtist[]): AlbumCard[]` in `lib/albumList.ts`.
   `AlbumCard = {key, album, artist, tracks}`. One card per (artist, album) pair.
   "Singles" of two artists are two cards. Sort by album name, then artist name
-  (case-insensitive, `localeCompare` with `th`).
-- Album view: a grid of cards (album name, artist, "<n> เพลง").
+  (case-insensitive, `localeCompare` with `th`; this puts Thai names before Latin names).
+- Album view: `AlbumGrid.svelte`, a grid of cards (album name, artist, "<n> เพลง").
   Clicking a card opens its track list in place, with the same `TrackRow` and delete.
   One card is open at a time. The open card key is local state (not in the URL).
 - The filter works in both views. It runs `filterLibrary` first, then `albumList`.
@@ -103,8 +107,9 @@ and the library reads the name from tags, so the combobox shows "The Weeknd".
 
 ### 4.2 Frontend
 
-- Pure module `lib/searchPages.ts`: `pageNumbers(current, knownLast): number[]`
-  and the rule for `knownLast` (5 until a page has `has_more: false`, then that page).
+- Pure module `lib/searchPages.ts`: `knownLastPage(pages)` (5 until a fetched page has
+  `has_more: false`, then the lowest such page) and `pageNumbers(last)` (1..last).
+- `Pager.svelte` draws the pager from `page`, `last` and `busy`, and calls `ongo(n)`.
 - The search page keeps a `Map<number, SearchResponse>` for the current query.
   A new query clears it. Going back to a fetched page does not call the API.
 - A pager under the results: `« ก่อน`, page numbers, `ถัดไป »`.
@@ -132,7 +137,8 @@ and the library reads the name from tags, so the combobox shows "The Weeknd".
 - Start at 2 or more characters, after 250 ms with no typing.
   A new request aborts the old one (`AbortController`). Errors show nothing.
 - Rows: YouTube suggestions first, then up to 3 library matches
-  (artists and track titles that contain the text, case-insensitive), hint "มีแล้ว".
+  (artists and track titles that contain the text, case-insensitive; `libraryMatches`), hint "มีแล้ว".
+- The rows are empty while the text equals the last search, so the popup closes after a search.
 - Picking a row puts its text in the box and runs the search at page 1.
 - `api.suggest(q, signal)` in `lib/api.ts`.
 
@@ -151,10 +157,13 @@ Frontend (vitest):
 
 - `matchArtist`: exact, case, each separator, longest wins, no match, empty names.
 - `albumList`: one card per pair, two "Singles" cards, sort order, Thai names.
-- `searchPages`: numbers for each current page, cut at `knownLast`.
-- `Combobox`: arrows, Enter, Esc, create row shown and hidden, ARIA attributes.
-- `EditPanel`: artist options from the library, album options follow the artist.
-- Library page: the toggle changes `?view=`, opening a card shows its tracks.
+- `libraryOptions`: artist rows with counts and the YouTube guess, album rows per artist, library matches.
+- `searchPages`: `knownLastPage` and `pageNumbers`.
+- `Combobox`: arrows, Enter, Esc, mouse pick, create row shown and hidden, filter after typing, ARIA attributes.
+- `Pager`: current page, prev/next, disabled at the ends and while busy.
+- `EditPanel`: artist options from the library, album options follow the artist, YouTube guess row.
+- `AlbumGrid`: closed cards, one open at a time, delete through the track row.
+  (The `?view=` toggle is two plain links; it is checked in the browser, not in a unit test.)
 
 ## 7. Files
 
@@ -163,7 +172,10 @@ Backend:
 - Create: `suggest.py`, `tests/test_suggest.py`
 
 Frontend:
-- Create: `lib/artistMatch.ts`, `lib/albumList.ts`, `lib/searchPages.ts`,
-  `lib/components/Combobox.svelte` (each with a test file)
-- Modify: `lib/types.ts`, `lib/api.ts`, `lib/components/EditPanel.svelte`,
+- Create: `lib/artistMatch.ts`, `lib/albumList.ts`, `lib/libraryOptions.ts`, `lib/searchPages.ts`,
+  `lib/components/Combobox.svelte`, `lib/components/Pager.svelte`, `lib/components/AlbumGrid.svelte`
+  (each with a test file)
+- Modify: `lib/types.ts`, `lib/api.ts`, `lib/selection.ts`, `lib/components/EditPanel.svelte`,
   `routes/+page.svelte`, `routes/library/+page.svelte`, and their tests
+
+Plan: `docs/superpowers/plans/2026-11-07-search-library-polish.md`.
