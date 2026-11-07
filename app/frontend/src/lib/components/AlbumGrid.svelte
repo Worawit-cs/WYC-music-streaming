@@ -23,11 +23,11 @@
 	}
 </script>
 
-<ul class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+<ul class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
 	{#each cards as card, i (card.key)}
 		{@const isOpen = open === card.key}
 		{@const isEditing = editing === card.key}
-		<li class={['card', (isOpen || isEditing) && 'sm:col-span-2 xl:col-span-3']}>
+		<li class={['card min-w-0', (isOpen || isEditing) && 'sm:col-span-2 xl:col-span-3']}>
 			<div class="flex items-center gap-2 pr-3">
 				<button
 					class="flex min-w-0 flex-1 items-center gap-3 p-4 text-left"
