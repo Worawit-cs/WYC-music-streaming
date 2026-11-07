@@ -21,6 +21,7 @@ from .events import format_sse
 from .jobs import NewJob
 from .paths import UnsafePath
 from .search import MAX_PAGES, SEARCH_TIMEOUT, search
+from .suggest import fetch_suggestions
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -79,6 +80,13 @@ async def search_route(
         raise HTTPException(status_code=504, detail="search took too long") from None
     except DownloadError as exc:
         raise HTTPException(status_code=502, detail=str(exc).removeprefix("ERROR: ")[:300]) from None
+
+
+@router.get("/suggest")
+async def suggest_route(
+    request: Request, user: UserDep, q: Annotated[str, Query(min_length=1, max_length=100)]
+) -> dict[str, list[str]]:
+    return {"suggestions": await fetch_suggestions(request.app.state.suggest_http, q)}
 
 
 @router.post("/jobs", status_code=201)

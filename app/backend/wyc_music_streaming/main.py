@@ -22,6 +22,7 @@ from .jellyfin import JellyfinClient, RefreshScheduler
 from .jobs import JobStore
 from .library import Library
 from .search import Extractor, ytdlp_extract
+from .suggest import SUGGEST_TIMEOUT
 from .worker import Downloader, Worker, ytdlp_download
 
 log = logging.getLogger(__name__)
@@ -60,6 +61,7 @@ def create_app(
     downloader: Downloader = ytdlp_download,
     extract: Extractor = ytdlp_extract,
     jellyfin_transport: httpx.AsyncBaseTransport | None = None,
+    suggest_transport: httpx.AsyncBaseTransport | None = None,
     refresh_delay: float = 30.0,
     rescan_interval: float = 3600.0,
     static_dir: Path | None = DEFAULT_STATIC_DIR,
@@ -80,6 +82,7 @@ def create_app(
         events = EventBroker()
         jellyfin = JellyfinClient(config.jellyfin.url, config.jellyfin.api_key, transport=jellyfin_transport)
         refresher = RefreshScheduler(jellyfin, delay=refresh_delay)
+        suggest_http = httpx.AsyncClient(timeout=SUGGEST_TIMEOUT, transport=suggest_transport)
         worker = Worker(config=config, store=store, library=library, events=events,
                         refresher=refresher, downloader=downloader)
 
@@ -90,6 +93,7 @@ def create_app(
         app.state.refresher = refresher
         app.state.worker = worker
         app.state.extract = extract
+        app.state.suggest_http = suggest_http
 
         tasks = worker.start() if start_workers else []
         tasks.append(asyncio.create_task(_rescan_forever(library, events, config.users, rescan_interval)))
@@ -103,6 +107,7 @@ def create_app(
                     await task
             await refresher.aclose()
             await jellyfin.aclose()
+            await suggest_http.aclose()
             store.close()
 
     app = FastAPI(title="WYC-music-streaming", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)

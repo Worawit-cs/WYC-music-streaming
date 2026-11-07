@@ -40,8 +40,12 @@ def client(config, make_audio):
         jf_calls.append(request)
         return httpx.Response(204)
 
+    def suggest(request):
+        return httpx.Response(200, json=[request.url.params["q"], ["numb", "numb lyrics"]])
+
     app = create_app(config, downloader=downloader, extract=extract,
-                     jellyfin_transport=httpx.MockTransport(jellyfin), refresh_delay=0.01)
+                     jellyfin_transport=httpx.MockTransport(jellyfin),
+                     suggest_transport=httpx.MockTransport(suggest), refresh_delay=0.01)
     with TestClient(app, headers=WICK) as c:
         c.jf_calls = jf_calls
         yield c
@@ -84,6 +88,21 @@ def test_search_validation(client):
     assert client.get("/api/search", params={"q": "   "}).status_code == 400
     assert client.get("/api/search", params={"q": "numb", "page": 0}).status_code == 422
     assert client.get("/api/search", params={"q": "numb", "page": 6}).status_code == 422
+
+
+def test_suggest_returns_list(client):
+    r = client.get("/api/suggest", params={"q": "num"})
+    assert r.status_code == 200
+    assert r.json() == {"suggestions": ["numb", "numb lyrics"]}
+
+
+def test_suggest_validation(client):
+    assert client.get("/api/suggest", params={"q": ""}).status_code == 422
+    assert client.get("/api/suggest", params={"q": "x" * 101}).status_code == 422
+
+
+def test_suggest_needs_identity(client):
+    assert client.get("/api/suggest", params={"q": "num"}, headers={HEADER: "stranger@example.com"}).status_code == 403
 
 
 def test_search_returns_page_fields(client):
