@@ -179,3 +179,9 @@ Frontend:
   `routes/+page.svelte`, `routes/library/+page.svelte`, and their tests
 
 Plan: `docs/superpowers/plans/2026-11-07-search-library-polish.md`.
+
+## 8. Deploy result (2026-11-07)
+
+Deployed on the NAS with `update.sh`. `/api/suggest` answers 403 on localhost (no identity), as expected.
+The owner checked all items on the phone and laptop: suggestions, pages, library prefill for a feat. track,
+album list per artist with the create row, album view with open/delete/reload, and no side scrolling.

@@ -483,7 +483,7 @@ The app reads host and port from the validated config. The loopback check in con
    - Downloaded format 140 (m4a, 2.89 MiB) successfully.
 2. ~~`tailscale serve` with UFW~~: **verified 2026-11-06**. `https://<nas>.<tailnet>.ts.net` opens from another tailnet device with no UFW change.
 3. ~~Tailscale version~~: **verified**. Version 1.98.4 supports `tailscale serve --bg`.
-4. **Node on 20.04.** Not yet tested. Check that `nvm install --lts` gives a working Node (glibc 2.31).
+4. ~~Node on 20.04~~: **verified 2026-11-07**. nvm 0.40.8 `nvm install --lts` gave Node v26.13.0 (npm 11.20.0), no glibc error. `update.sh` builds the frontend in about 13 s.
 5. ~~ffmpeg~~: **verified 2026-11-06**. ffmpeg 4.2.7 from the Ubuntu 20.04 repo. Stream copy to m4a works.
 6. ~~Jellyfin version ≥ 10.9~~: **verified 2026-11-05**. Version 10.11.8.
 7. ~~ytmusicapi without login~~: **verified 2026-11-05** on the NAS.
@@ -504,6 +504,21 @@ The app reads host and port from the validated config. The loopback check in con
      - `config.toml` and `jellyfin.key` use group `wick`. There is no `wyc-music-streaming` group, because the service user is created with `--gid wick`.
      - File and folder names use `_` for spaces (§6.4 step 5), as the owner asked.
    - Service start takes about 5 s (it scans the music folders first). Wait for it before the first request.
+10. **Frontend deploy and smoke test: done 2026-11-07** (plan 2, Task 7).
+    - `update.sh` built `app/frontend/build/`; the backend serves it at `/` over `tailscale serve`.
+    - Checked on the phone and laptop: Cassette UI and fonts, search and download, queue shows done with the path,
+      library delete, reload on `/library` (SPA fallback), `/api/events` SSE through `tailscale serve` (connect line and 15 s pings arrive at once).
+    - Plan 2.5 (search pages, suggestions, artist/album combobox, album view) deployed the same day; see the addendum §8.
+11. **Open: the download progress bar does not move** (found 2026-11-07, fix in the next work).
+    - Seen: the cassette deck stays near 0 % while a track downloads, then goes idle when the job is done.
+    - Root cause (measured on the dev machine with yt-dlp 2026.10.26, `Numb`, 3.0 MB, format 140 over `https`):
+      about 2.2 s pass before the first byte (extraction), then all 12 `downloading` hook calls arrive within 0.13 s.
+      The worker sends at most one progress update per `PROGRESS_INTERVAL = 1.0` s (`worker.py`), so only the first
+      call (about 0 %) gets out. The 100 % call is dropped, and there is no update during extraction or post-processing
+      (ffmpeg, tags, move). `total_bytes` is present, so the percent math is not the problem; SSE delivery is not the problem either.
+    - Fix ideas: always send the final update (fraction 1.0, and on the `finished` hook); add a job stage
+      (finding → downloading → processing) with `postprocessor_hooks`, and show an indeterminate bar outside "downloading";
+      keep a finished job in the deck for a few seconds ("อัดเสร็จแล้ว").
 
 ## 12. Later (not in this version)
 
