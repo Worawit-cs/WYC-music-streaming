@@ -8,7 +8,7 @@ from wyc_music_streaming.events import EventBroker
 from wyc_music_streaming.jobs import JobStore, NewJob
 from wyc_music_streaming.library import Library
 from wyc_music_streaming.tags import read_tags
-from wyc_music_streaming.worker import Worker
+from wyc_music_streaming.worker import Worker, progress_hook
 
 
 class FakeRefresher:
@@ -26,8 +26,12 @@ def env(config, make_audio, tmp_path):
     events = EventBroker()
     refresher = FakeRefresher()
 
-    def good_downloader(job, tmp_dir, on_progress):
+    def good_downloader(job, tmp_dir, on_progress, on_stage):
+        on_stage("downloading")
         on_progress(0.5)
+        on_progress(0.7)  # inside the throttle window: dropped
+        on_progress(1.0)  # the last update always goes out
+        on_stage("processing")
         audio = make_audio(tmp_dir / f"{job.id}.m4a")
         thumb = tmp_dir / f"{job.id}.jpg"
         thumb.write_bytes(b"THUMB")
@@ -109,7 +113,8 @@ async def test_job_done_moves_tags_and_notifies(env):
     assert env.refresher.calls == 1
     events = drain(q)
     assert [e["type"] for e in events].count("job") >= 2
-    assert any(e["type"] == "job" and e["data"]["progress"] == 0.5 for e in events)
+    progress = [e["data"]["progress"] for e in events if e["type"] == "job" and e["data"]["status"] == "downloading"]
+    assert 0.5 in progress and 1.0 in progress and 0.7 not in progress
     assert events[-1]["type"] == "library"
     assert list(env.tmp_dir.iterdir()) == []
 
@@ -154,7 +159,7 @@ async def test_name_collision_adds_suffix(env, make_audio):
 
 
 async def test_download_error_marks_failed_and_cleans_tmp(env):
-    def broken(job, tmp_dir, on_progress):
+    def broken(job, tmp_dir, on_progress, on_stage):
         (tmp_dir / f"{job.id}.m4a.part").write_bytes(b"partial")
         raise RuntimeError("ERROR: [youtube] kXYiU_JCYtU: Sign in to confirm you're not a bot\nmore lines")
 
@@ -195,3 +200,46 @@ async def test_started_loop_processes_queued_job(env):
         for t in tasks:
             t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def test_stages_go_finding_downloading_processing(env):
+    worker = env.make_worker()
+    q = env.events.subscribe("wick")
+    job = queue_job(env)
+    assert job.stage == "finding"
+
+    await worker.process(job)
+
+    stages = [e["data"]["stage"] for e in drain(q) if e["type"] == "job" and e["data"]["status"] == "downloading"]
+    order = [s for i, s in enumerate(stages) if i == 0 or stages[i - 1] != s]
+    assert order == ["finding", "downloading", "processing"]
+
+
+async def test_processing_stage_is_set_even_if_the_downloader_never_says_so(env, make_audio):
+    def quiet(job, tmp_dir, on_progress, on_stage):
+        return make_audio(tmp_dir / f"{job.id}.m4a"), None
+
+    worker = env.make_worker(downloader=quiet)
+    q = env.events.subscribe("wick")
+    job = queue_job(env)
+    await worker.process(job)
+    stages = [e["data"]["stage"] for e in drain(q) if e["type"] == "job" and e["data"]["status"] == "downloading"]
+    assert stages[-1] == "processing"
+
+
+def test_progress_hook_maps_ytdlp_events():
+    calls = []
+    hook = progress_hook(lambda f: calls.append(("progress", f)), lambda s: calls.append(("stage", s)))
+    hook({"status": "downloading", "downloaded_bytes": 0, "total_bytes": None})
+    hook({"status": "downloading", "downloaded_bytes": 50, "total_bytes": 200})
+    hook({"status": "downloading", "downloaded_bytes": 100, "total_bytes_estimate": 200})
+    hook({"status": "finished", "downloaded_bytes": 200, "total_bytes": 200})
+    assert calls == [
+        ("stage", "downloading"),
+        ("stage", "downloading"),
+        ("progress", 0.25),
+        ("stage", "downloading"),
+        ("progress", 0.5),
+        ("progress", 1.0),
+        ("stage", "processing"),
+    ]

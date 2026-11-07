@@ -21,7 +21,8 @@ from .tags import TagData, write_tags
 log = logging.getLogger(__name__)
 
 ProgressFn = Callable[[float], None]
-Downloader = Callable[[Job, Path, ProgressFn], tuple[Path, Path | None]]
+StageFn = Callable[[str], None]
+Downloader = Callable[[Job, Path, ProgressFn, StageFn], tuple[Path, Path | None]]
 CoverFetcher = Callable[[str], Awaitable[bytes | None]]
 
 TMP_DIR_NAME = ".wyc-music-streaming-tmp"
@@ -40,14 +41,31 @@ class Refresher(Protocol):
     def schedule(self) -> None: ...
 
 
-def ytdlp_download(job: Job, tmp_dir: Path, on_progress: ProgressFn) -> tuple[Path, Path | None]:
-    from yt_dlp import YoutubeDL
+def progress_hook(on_progress: ProgressFn, on_stage: StageFn) -> Callable[[dict[str, Any]], None]:
+    """yt-dlp progress hook. Repeated stages are fine: the worker drops repeats.
+
+    "finished" (the bytes are all here) marks the start of processing. A postprocessor hook
+    would not do: the thumbnail converter runs before the download ("before_dl").
+    """
 
     def hook(d: dict[str, Any]) -> None:
         if d.get("status") == "downloading":
+            on_stage("downloading")
             total = d.get("total_bytes") or d.get("total_bytes_estimate")
             if total:
                 on_progress(min(d.get("downloaded_bytes", 0) / total, 1.0))
+        elif d.get("status") == "finished":
+            on_progress(1.0)
+            on_stage("processing")
+
+    return hook
+
+
+def ytdlp_download(
+    job: Job, tmp_dir: Path, on_progress: ProgressFn, on_stage: StageFn
+) -> tuple[Path, Path | None]:
+    from yt_dlp import YoutubeDL
+
 
     opts = {
         "format": "bestaudio[ext=m4a]/bestaudio",
@@ -58,7 +76,7 @@ def ytdlp_download(job: Job, tmp_dir: Path, on_progress: ProgressFn) -> tuple[Pa
         "no_warnings": True,
         "noprogress": True,
         "socket_timeout": 30,
-        "progress_hooks": [hook],
+        "progress_hooks": [progress_hook(on_progress, on_stage)],
         "postprocessors": [
             # "best" = stream copy into a taggable container (aac→.m4a, opus→.opus). Never re-encode.
             {"key": "FFmpegExtractAudio", "preferredcodec": "best"},
@@ -179,17 +197,26 @@ class Worker:
 
         loop = asyncio.get_running_loop()
         last_sent = float("-inf")
+        stage = job.stage
 
         def on_progress(fraction: float) -> None:  # runs in the yt-dlp thread
             nonlocal last_sent
             now = time.monotonic()
-            if now - last_sent < PROGRESS_INTERVAL:
-                return
+            if fraction < 1.0 and now - last_sent < PROGRESS_INTERVAL:
+                return  # throttle, but never drop the final 100 %
             last_sent = now
             loop.call_soon_threadsafe(self._progress, job.id, fraction)
 
+        def on_stage(next_stage: str) -> None:  # runs in the yt-dlp thread
+            nonlocal stage
+            if next_stage == stage:
+                return
+            stage = next_stage
+            loop.call_soon_threadsafe(self._stage, job.id, next_stage)
+
         try:
-            audio, thumb = await asyncio.to_thread(self.downloader, job, tmp_dir, on_progress)
+            audio, thumb = await asyncio.to_thread(self.downloader, job, tmp_dir, on_progress, on_stage)
+            on_stage("processing")  # cover, tags and the move still follow
             cover = await self.fetch_cover(job.cover_url) if job.cover_url else None
             if cover is None and thumb is not None and thumb.exists():
                 cover = thumb.read_bytes()
@@ -228,6 +255,10 @@ class Worker:
 
     def _progress(self, job_id: int, fraction: float) -> None:
         self.store.set_progress(job_id, fraction)
+        self._publish_job(job_id)
+
+    def _stage(self, job_id: int, stage: str) -> None:
+        self.store.set_stage(job_id, stage)
         self._publish_job(job_id)
 
     def _publish_job(self, job_id: int) -> None:

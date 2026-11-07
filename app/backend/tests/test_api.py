@@ -26,7 +26,7 @@ def wait_for(predicate, timeout=10.0):
 
 @pytest.fixture
 def client(config, make_audio):
-    def downloader(job, tmp_dir, on_progress):
+    def downloader(job, tmp_dir, on_progress, on_stage):
         if job.video_id == "failfailfai":
             raise RuntimeError("ERROR: Video unavailable")
         return make_audio(tmp_dir / f"{job.id}.m4a"), None
