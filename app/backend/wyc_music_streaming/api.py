@@ -20,7 +20,7 @@ from .config import User
 from .events import format_sse
 from .jobs import NewJob
 from .paths import UnsafePath
-from .search import SEARCH_TIMEOUT, search
+from .search import MAX_PAGES, SEARCH_TIMEOUT, search
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -62,12 +62,17 @@ async def me(user: UserDep) -> dict[str, Any]:
 
 @router.get("/search")
 async def search_route(
-    request: Request, user: UserDep, q: Annotated[str, Query(min_length=1, max_length=500)]
+    request: Request,
+    user: UserDep,
+    q: Annotated[str, Query(min_length=1, max_length=500)],
+    page: Annotated[int, Query(ge=1, le=MAX_PAGES)] = 1,
 ) -> dict[str, Any]:
     st = request.app.state
     ids = st.library.video_ids(user.name)
     try:
-        return await asyncio.wait_for(run_in_threadpool(search, q, ids, st.extract), timeout=SEARCH_TIMEOUT)
+        return await asyncio.wait_for(
+            run_in_threadpool(search, q, ids, st.extract, page=page), timeout=SEARCH_TIMEOUT
+        )
     except ValueError:
         raise HTTPException(status_code=400, detail="empty query") from None
     except TimeoutError:

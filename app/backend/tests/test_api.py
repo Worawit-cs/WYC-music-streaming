@@ -82,6 +82,14 @@ def test_missing_header_is_denied(config):
 def test_search_validation(client):
     assert client.get("/api/search", params={"q": ""}).status_code == 422
     assert client.get("/api/search", params={"q": "   "}).status_code == 400
+    assert client.get("/api/search", params={"q": "numb", "page": 0}).status_code == 422
+    assert client.get("/api/search", params={"q": "numb", "page": 6}).status_code == 422
+
+
+def test_search_returns_page_fields(client):
+    out = client.get("/api/search", params={"q": "numb", "page": 2}).json()
+    assert out["page"] == 2
+    assert out["has_more"] is False
 
 
 def test_download_flow(client):
