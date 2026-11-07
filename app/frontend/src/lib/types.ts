@@ -24,6 +24,9 @@ export type SearchResponse = {
 
 export type JobStatus = 'queued' | 'downloading' | 'done' | 'failed' | 'cancelled';
 
+/** Where a downloading job is: looking up the video, downloading bytes, or converting and tagging. */
+export type JobStage = 'finding' | 'downloading' | 'processing';
+
 export type Job = {
 	id: number;
 	user: string;
@@ -41,6 +44,7 @@ export type Job = {
 	final_path: string | null;
 	created_at: string;
 	updated_at: string;
+	stage: JobStage | null;
 };
 
 export type JobItem = {

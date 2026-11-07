@@ -1,5 +1,5 @@
 import { ApiError } from './api';
-import type { JobStatus } from './types';
+import type { Job, JobStatus } from './types';
 
 /** 187 → "3:07", 3725 → "1:02:05", null → "–:––". */
 export function formatDuration(seconds: number | null | undefined): string {
@@ -23,6 +23,13 @@ export const STATUS_LABEL: Record<JobStatus, string> = {
 	failed: 'ล้มเหลว',
 	cancelled: 'ยกเลิกแล้ว'
 };
+
+/** The cassette deck line for a downloading job. No stage yet counts as "finding". */
+export function stageText(job: Job): string {
+	if (job.stage === 'downloading') return `กำลังโหลด ${percent(job.progress)}`;
+	if (job.stage === 'processing') return 'กำลังแปลงไฟล์…';
+	return 'กำลังหาไฟล์…';
+}
 
 /** One line of text for the UI from any error thrown by the API client. */
 export function errorText(error: unknown): string {

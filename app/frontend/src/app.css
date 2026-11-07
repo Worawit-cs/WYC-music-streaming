@@ -51,4 +51,24 @@
 	.label {
 		@apply font-mono text-xs tracking-wide text-muted uppercase;
 	}
+	/* Progress without a number: diagonal stripes, moving unless the user asked for reduced motion. */
+	.bar-stripes {
+		background-image: repeating-linear-gradient(
+			-45deg,
+			var(--color-teal) 0 8px,
+			var(--color-yellow) 8px 16px
+		);
+		background-size: 22.6px 22.6px;
+	}
+	@media (prefers-reduced-motion: no-preference) {
+		.bar-stripes {
+			animation: bar-stripes 0.8s linear infinite;
+		}
+	}
+}
+
+@keyframes bar-stripes {
+	to {
+		background-position: 22.6px 0;
+	}
 }

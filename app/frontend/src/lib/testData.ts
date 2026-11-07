@@ -19,6 +19,7 @@ export function makeJob(overrides: Partial<Job> = {}): Job {
 		final_path: null,
 		created_at: '2026-11-06T15:00:00Z',
 		updated_at: '2026-11-06T15:00:00Z',
+		stage: null,
 		...overrides
 	};
 }

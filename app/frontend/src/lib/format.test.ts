@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from './api';
-import { errorText, formatDuration, percent } from './format';
+import { errorText, formatDuration, percent, stageText } from './format';
+import { makeJob } from './testData';
 
 describe('formatDuration', () => {
 	it.each([
@@ -35,5 +36,15 @@ describe('errorText', () => {
 	});
 	it('handles network errors', () => {
 		expect(errorText(new TypeError('Failed to fetch'))).toBe('ติดต่อเซิร์ฟเวอร์ไม่ได้');
+	});
+});
+
+describe('stageText', () => {
+	it('names each stage of a downloading job', () => {
+		const job = makeJob({ status: 'downloading', progress: 0.42 });
+		expect(stageText({ ...job, stage: 'finding' })).toBe('กำลังหาไฟล์…');
+		expect(stageText({ ...job, stage: null })).toBe('กำลังหาไฟล์…');
+		expect(stageText({ ...job, stage: 'downloading' })).toBe('กำลังโหลด 42%');
+		expect(stageText({ ...job, stage: 'processing' })).toBe('กำลังแปลงไฟล์…');
 	});
 });
