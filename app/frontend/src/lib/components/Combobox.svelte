@@ -11,6 +11,8 @@
 		maxlength?: number;
 		/** When set, new text gets a last row "+ <createLabel> "<text>"". */
 		createLabel?: string | null;
+		/** Filter the options by the text, but only after the user types (focus shows them all). */
+		filter?: boolean;
 		onpick?: (value: string) => void;
 	};
 	let {
@@ -21,18 +23,21 @@
 		placeholder,
 		maxlength,
 		createLabel = null,
+		filter = false,
 		onpick
 	}: Props = $props();
 
 	const uid = $props.id();
 	let open = $state(false);
 	let active = $state(-1);
+	let typed = $state(false);
 
 	const fold = (s: string) => s.trim().toLowerCase();
 	const rows = $derived.by(() => {
-		const typed = value.trim();
-		const isNew = createLabel && typed && !options.some((o) => fold(o.value) === fold(typed));
-		return isNew ? [...options, { value: typed, label: `+ ${createLabel} "${typed}"` }] : options;
+		const text = value.trim();
+		const shown = filter && typed ? options.filter((o) => fold(o.label).includes(fold(text))) : options;
+		const isNew = createLabel && text && !options.some((o) => fold(o.value) === fold(text));
+		return isNew ? [...shown, { value: text, label: `+ ${createLabel} "${text}"` }] : shown;
 	});
 	const showList = $derived(open && rows.length > 0);
 
@@ -40,6 +45,7 @@
 		value = next;
 		open = false;
 		active = -1;
+		typed = false;
 		onpick?.(next);
 	}
 
@@ -75,7 +81,10 @@
 		bind:value
 		{placeholder}
 		{maxlength}
-		onfocus={() => (open = true)}
+		onfocus={() => {
+			open = true;
+			typed = false;
+		}}
 		onblur={() => {
 			open = false;
 			active = -1;
@@ -83,6 +92,7 @@
 		oninput={() => {
 			open = true;
 			active = -1;
+			typed = true;
 		}}
 		{onkeydown}
 	/>

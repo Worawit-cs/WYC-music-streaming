@@ -37,6 +37,13 @@
 	let editorBox = $state<HTMLElement | null>(null);
 
 	const placeholder = $derived(TABS.find((t) => t.id === tab)!.placeholder);
+	const artistNames = $derived(library.artists.map((a) => a.artist));
+	// The YouTube guess, only when the editor was prefilled with a different library name.
+	const youtubeArtist = $derived.by(() => {
+		if (!editing) return undefined;
+		const guess = response?.results.find((r) => r.video_id === editing!.video_id)?.suggested.artist;
+		return guess && guess !== editing.artist ? guess : undefined;
+	});
 	const isPlaylist = $derived(response?.kind === 'playlist');
 
 	// The editor sits above the results: bring it into view when a card far down opens it.
@@ -76,7 +83,7 @@
 				picked = defaultSelection(res.results, library.videoIds);
 				batchAlbum = res.playlist_title ?? '';
 			} else if (res.kind === 'url' && res.results.length === 1 && stateOf(res.results[0].video_id) === 'new') {
-				editing = draftFrom(res.results[0]);
+				editing = draftFrom(res.results[0], artistNames);
 			}
 		} catch (e) {
 			searchError = errorText(e);
@@ -108,7 +115,7 @@
 		if (!response) return;
 		const items = response.results
 			.filter((r) => picked.includes(r.video_id))
-			.map((r) => toJobItem(draftFrom(r), batchAlbum));
+			.map((r) => toJobItem(draftFrom(r, artistNames), batchAlbum));
 		if (items.length) void send(items);
 	}
 </script>
@@ -146,6 +153,8 @@
 			<div bind:this={editorBox} class="scroll-mt-4">
 				<EditPanel
 					draft={editing}
+					artists={library.artists}
+					{youtubeArtist}
 					busy={sending}
 					error={sendError}
 					onsubmit={(d) => void send([toJobItem(d)])}
@@ -189,7 +198,7 @@
 							ondownload={() => {
 								notice = null;
 								sendError = null;
-								editing = draftFrom(result);
+								editing = draftFrom(result, artistNames);
 							}}
 						/>
 					{/each}

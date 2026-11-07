@@ -1,3 +1,4 @@
+import { matchArtist } from './artistMatch';
 import { isActive } from './jobList';
 import type { CreateJobsResponse, Job, JobItem, SearchResult } from './types';
 
@@ -13,8 +14,10 @@ const FIELDS = [
 	['album', 'อัลบั้ม']
 ] as const;
 
-export function draftFrom(result: SearchResult): Draft {
-	return { video_id: result.video_id, ...result.suggested };
+/** libraryArtists: names already in the library, used to prefill the artist (see matchArtist). */
+export function draftFrom(result: SearchResult, libraryArtists: string[] = []): Draft {
+	const { title, artist, album } = result.suggested;
+	return { video_id: result.video_id, title, artist: matchArtist(artist, libraryArtists), album };
 }
 
 /** null when the draft is valid, else one message for the user. Limits match the backend (300). */

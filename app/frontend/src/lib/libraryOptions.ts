@@ -3,41 +3,24 @@ import type { ComboOption, LibraryArtist } from './types';
 const fold = (s: string) => s.trim().toLowerCase();
 const count = (n: number) => `${n} เพลง`;
 
-/** Show everything when the text is empty or already one of the names (so the list acts like a select). */
-function needleFor(typed: string, names: string[]): string {
-	const t = fold(typed);
-	return names.some((n) => fold(n) === t) ? '' : t;
-}
-
-/** Artist combobox rows: library artists that contain the text, plus the YouTube guess on top. */
-export function artistOptions(
-	artists: LibraryArtist[],
-	typed: string,
-	youtubeGuess?: string,
-	limit = 8
-): ComboOption[] {
-	const needle = needleFor(typed, artists.map((a) => a.artist));
-	const rows: ComboOption[] = artists
-		.filter((a) => fold(a.artist).includes(needle))
-		.map((a) => ({
-			value: a.artist,
-			label: a.artist,
-			hint: count(a.albums.reduce((n, al) => n + al.tracks.length, 0))
-		}));
+/** Artist combobox rows: every library artist, plus the YouTube guess on top when it is not one of them. */
+export function artistOptions(artists: LibraryArtist[], youtubeGuess?: string): ComboOption[] {
+	const rows: ComboOption[] = artists.map((a) => ({
+		value: a.artist,
+		label: a.artist,
+		hint: count(a.albums.reduce((n, al) => n + al.tracks.length, 0))
+	}));
 	const guess = youtubeGuess?.trim();
-	const guessIsNew = guess && fold(guess) !== fold(typed) && !artists.some((a) => fold(a.artist) === fold(guess));
-	if (guessIsNew) rows.unshift({ value: guess, label: guess, hint: 'ชื่อจาก YouTube' });
-	return rows.slice(0, limit);
+	if (guess && !artists.some((a) => fold(a.artist) === fold(guess))) {
+		rows.unshift({ value: guess, label: guess, hint: 'ชื่อจาก YouTube' });
+	}
+	return rows;
 }
 
-/** Album combobox rows: albums of the artist named in the artist field. */
-export function albumOptions(artists: LibraryArtist[], artist: string, typed: string, limit = 8): ComboOption[] {
+/** Album combobox rows: the albums of the artist named in the artist field (empty for a new artist). */
+export function albumOptions(artists: LibraryArtist[], artist: string): ComboOption[] {
 	const albums = artists.find((a) => fold(a.artist) === fold(artist))?.albums ?? [];
-	const needle = needleFor(typed, albums.map((al) => al.album));
-	return albums
-		.filter((al) => fold(al.album).includes(needle))
-		.map((al) => ({ value: al.album, label: al.album, hint: count(al.tracks.length) }))
-		.slice(0, limit);
+	return albums.map((al) => ({ value: al.album, label: al.album, hint: count(al.tracks.length) }));
 }
 
 /** Search-box rows from the library: artist names first, then track titles. */

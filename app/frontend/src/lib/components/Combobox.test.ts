@@ -79,4 +79,14 @@ describe('Combobox', () => {
 		expect(event.defaultPrevented).toBe(false);
 		expect(onpick).not.toHaveBeenCalled();
 	});
+
+	it('filters only after typing when filter is on', async () => {
+		const { input } = setup({ value: 'Sade', filter: true });
+		await fireEvent.focus(input);
+		expect(screen.getAllByRole('option')).toHaveLength(2);
+		await fireEvent.input(input, { target: { value: 'park' } });
+		expect(screen.getAllByRole('option').map((o) => o.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+			'Linkin Park 3 เพลง'
+		]);
+	});
 });

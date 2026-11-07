@@ -16,6 +16,12 @@ describe('selection', () => {
 		expect(draftFrom(makeResult())).toEqual(draft);
 	});
 
+	it('prefills the artist with a library name when the guess has guests', () => {
+		const result = makeResult({ suggested: { title: 'Numb', artist: 'Linkin Park, Jay-Z', album: 'Singles' } });
+		expect(draftFrom(result, ['Linkin Park']).artist).toBe('Linkin Park');
+		expect(draftFrom(result).artist).toBe('Linkin Park, Jay-Z');
+	});
+
 	it('validates blank and long fields', () => {
 		expect(validateDraft(draft)).toBeNull();
 		expect(validateDraft({ ...draft, title: ' ' })).toBe('กรอกชื่อเพลงก่อน');

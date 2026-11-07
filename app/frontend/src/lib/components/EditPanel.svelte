@@ -1,19 +1,29 @@
 <script lang="ts">
+	import { albumOptions, artistOptions } from '$lib/libraryOptions';
 	import { validateDraft, type Draft } from '$lib/selection';
+	import type { LibraryArtist } from '$lib/types';
+	import Combobox from './Combobox.svelte';
 
 	type Props = {
 		draft: Draft;
+		/** The library tree, for the artist and album lists. */
+		artists?: LibraryArtist[];
+		/** The artist YouTube suggested, shown in the list when the prefill differs. */
+		youtubeArtist?: string;
 		busy?: boolean;
 		error?: string | null;
 		onsubmit: (draft: Draft) => void;
 		oncancel: () => void;
 	};
-	let { draft, busy = false, error = null, onsubmit, oncancel }: Props = $props();
+	let { draft, artists = [], youtubeArtist, busy = false, error = null, onsubmit, oncancel }: Props = $props();
 
 	// Writable deriveds: they reset when the parent passes a new draft.
 	let title = $derived(draft.title);
 	let artist = $derived(draft.artist);
 	let album = $derived(draft.album);
+
+	const artistRows = $derived(artistOptions(artists, youtubeArtist));
+	const albumRows = $derived(albumOptions(artists, artist));
 
 	const current = $derived({ video_id: draft.video_id, title, artist, album });
 	const problem = $derived(validateDraft(current));
@@ -30,14 +40,8 @@
 		<span class="label">ชื่อเพลง</span>
 		<input class="input" bind:value={title} maxlength="300" />
 	</label>
-	<label class="block space-y-1">
-		<span class="label">ศิลปิน</span>
-		<input class="input" bind:value={artist} maxlength="300" />
-	</label>
-	<label class="block space-y-1">
-		<span class="label">อัลบั้ม</span>
-		<input class="input" bind:value={album} maxlength="300" />
-	</label>
+	<Combobox bind:value={artist} options={artistRows} label="ศิลปิน" maxlength={300} createLabel="สร้างใหม่" filter />
+	<Combobox bind:value={album} options={albumRows} label="อัลบั้ม" maxlength={300} createLabel="สร้างใหม่" filter />
 	{#if problem}
 		<p role="alert" class="text-sm text-orange">{problem}</p>
 	{/if}
