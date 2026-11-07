@@ -1,11 +1,16 @@
 <script lang="ts">
+	import { SvelteMap } from 'svelte/reactivity';
 	import { api } from '$lib/client';
 	import CassetteDeck from '$lib/components/CassetteDeck.svelte';
+	import Combobox from '$lib/components/Combobox.svelte';
 	import EditPanel from '$lib/components/EditPanel.svelte';
+	import Pager from '$lib/components/Pager.svelte';
 	import ResultCard from '$lib/components/ResultCard.svelte';
 	import { errorText } from '$lib/format';
 	import { jobs } from '$lib/jobs.svelte';
 	import { library } from '$lib/library.svelte';
+	import { libraryMatches } from '$lib/libraryOptions';
+	import { knownLastPage } from '$lib/searchPages';
 	import {
 		cardState,
 		defaultSelection,
@@ -14,7 +19,7 @@
 		toJobItem,
 		type Draft
 	} from '$lib/selection';
-	import type { JobItem, SearchResponse } from '$lib/types';
+	import type { ComboOption, JobItem, SearchResponse } from '$lib/types';
 
 	type Tab = 'song' | 'link';
 	const TABS: { id: Tab; label: string; placeholder: string }[] = [
@@ -34,7 +39,19 @@
 	let picked = $state<string[]>([]);
 	let batchAlbum = $state('');
 
+	// Text search pages: one query at a time, fetched pages kept until the next query.
+	let query = $state('');
+	let page = $state(1);
+	let paging = $state(false);
+	const pages = new SvelteMap<number, SearchResponse>();
+	const lastPage = $derived(knownLastPage(pages.values()));
+
+	// Suggestions while typing (song tab only).
+	let suggestions = $state<string[]>([]);
+	let suggestCtrl: AbortController | null = null;
+
 	let editorBox = $state<HTMLElement | null>(null);
+	let resultsTop = $state<HTMLElement | null>(null);
 
 	const placeholder = $derived(TABS.find((t) => t.id === tab)!.placeholder);
 	const artistNames = $derived(library.artists.map((a) => a.artist));
@@ -53,6 +70,36 @@
 		editorBox.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
 	});
 
+	$effect(() => {
+		const text = q.trim();
+		suggestCtrl?.abort();
+		if (tab !== 'song' || text.length < 2 || text === query) {
+			suggestions = [];
+			return;
+		}
+		const timer = setTimeout(async () => {
+			const ctrl = new AbortController();
+			suggestCtrl = ctrl;
+			try {
+				const res = await api.suggest(text, ctrl.signal);
+				if (suggestCtrl === ctrl) suggestions = res.suggestions;
+			} catch {
+				// Suggestions are optional: ignore aborts and errors.
+			}
+		}, 250);
+		return () => clearTimeout(timer);
+	});
+
+	const fold = (s: string) => s.trim().toLowerCase();
+	const suggestRows = $derived.by((): ComboOption[] => {
+		if (tab !== 'song' || q.trim() === query) return [];
+		const fromYoutube = suggestions.map((s) => ({ value: s, label: s }));
+		const owned = libraryMatches(library.artists, q)
+			.filter((m) => !suggestions.some((s) => fold(s) === fold(m)))
+			.map((m) => ({ value: m, label: m, hint: 'มีแล้ว' }));
+		return [...fromYoutube, ...owned];
+	});
+
 	function stateOf(videoId: string) {
 		return cardState(videoId, library.videoIds, jobs.list);
 	}
@@ -62,14 +109,22 @@
 		searchError = null;
 	}
 
-	async function runSearch(event: SubmitEvent) {
+	function runSearch(event: SubmitEvent) {
 		event.preventDefault();
-		const query = q.trim();
-		if (!query || searching) return;
-		if (tab === 'link' && !/^https?:\/\//i.test(query)) {
+		void startSearch(q);
+	}
+
+	async function startSearch(text: string) {
+		const wanted = text.trim();
+		if (!wanted || searching) return;
+		if (tab === 'link' && !/^https?:\/\//i.test(wanted)) {
 			searchError = 'วางลิงก์ที่ขึ้นต้นด้วย https://';
 			return;
 		}
+		q = wanted;
+		query = wanted;
+		page = 1;
+		pages.clear();
 		searching = true;
 		searchError = null;
 		notice = null;
@@ -77,7 +132,8 @@
 		editing = null;
 		response = null;
 		try {
-			const res = await api.search(query);
+			const res = await api.search(wanted);
+			pages.set(1, res);
 			response = res;
 			if (res.kind === 'playlist') {
 				picked = defaultSelection(res.results, library.videoIds);
@@ -90,6 +146,33 @@
 		} finally {
 			searching = false;
 		}
+	}
+
+	async function goPage(n: number) {
+		if (paging || n === page || n < 1 || n > lastPage) return;
+		searchError = null;
+		const cached = pages.get(n);
+		if (cached) {
+			showPage(n, cached);
+			return;
+		}
+		paging = true;
+		try {
+			const res = await api.search(query, n);
+			pages.set(n, res);
+			showPage(n, res);
+		} catch (e) {
+			searchError = errorText(e);
+		} finally {
+			paging = false;
+		}
+	}
+
+	function showPage(n: number, res: SearchResponse) {
+		page = n;
+		response = res;
+		const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+		resultsTop?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
 	}
 
 	async function send(items: JobItem[]) {
@@ -135,8 +218,22 @@
 			{/each}
 		</div>
 
-		<form class="flex gap-2" onsubmit={runSearch}>
-			<input class="input" bind:value={q} {placeholder} aria-label={placeholder} maxlength="500" />
+		<form class="flex items-start gap-2" onsubmit={runSearch}>
+			<div class="min-w-0 flex-1">
+				{#if tab === 'song'}
+					<Combobox
+						bind:value={q}
+						options={suggestRows}
+						label={placeholder}
+						hideLabel
+						{placeholder}
+						maxlength={500}
+						onpick={(text) => void startSearch(text)}
+					/>
+				{:else}
+					<input class="input" bind:value={q} {placeholder} aria-label={placeholder} maxlength="500" />
+				{/if}
+			</div>
 			<button class="btn btn-primary shrink-0" type="submit" disabled={searching || !q.trim()}>
 				{searching ? 'กำลังหา…' : 'ค้นหา'}
 			</button>
@@ -183,6 +280,7 @@
 			</div>
 		{/if}
 
+		<div bind:this={resultsTop} class="scroll-mt-4"></div>
 		{#if response}
 			{#if response.results.length === 0}
 				<p class="text-muted">ไม่พบเพลง</p>
@@ -203,6 +301,9 @@
 						/>
 					{/each}
 				</ul>
+			{/if}
+			{#if response.kind === 'search' && lastPage > 1}
+				<Pager {page} last={lastPage} busy={paging} ongo={(n) => void goPage(n)} />
 			{/if}
 		{/if}
 	</section>

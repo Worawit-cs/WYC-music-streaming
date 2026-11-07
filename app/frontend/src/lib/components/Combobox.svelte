@@ -67,7 +67,7 @@
 	}
 </script>
 
-<div class="relative space-y-1">
+<div class={['relative', !hideLabel && 'space-y-1']}>
 	<label for={uid} class={hideLabel ? 'sr-only' : 'label block'}>{label}</label>
 	<input
 		id={uid}
