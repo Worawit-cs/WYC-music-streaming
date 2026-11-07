@@ -100,10 +100,13 @@ Jellyfin sees moved files as new items (play counts reset). Boxes (plan 3) do no
   `JobStore.__init__` adds it with `ALTER TABLE jobs ADD COLUMN stage TEXT` when missing
   (old databases on the NAS). `Job` gains `stage: str | None`.
 - Worker: when it claims a job, stage = `finding`, progress 0.
-- `ytdlp_download(job, tmp_dir, on_progress, on_stage)`:
-  - first `downloading` hook call: `on_stage("downloading")`;
-  - `finished` hook: `on_progress(1.0)` then `on_stage("processing")`;
-  - `postprocessor_hooks` `started`: `on_stage("processing")` (repeat calls are ignored).
+- `ytdlp_download(job, tmp_dir, on_progress, on_stage)` with one progress hook (`progress_hook(on_progress, on_stage)`):
+  - every `downloading` call: `on_stage("downloading")` (the worker drops repeats);
+  - `finished` (all bytes are here): `on_progress(1.0)` then `on_stage("processing")`.
+  - No postprocessor hook: the thumbnail converter runs before the download (`when: "before_dl"`),
+    so it would mark "processing" too early. Found in the browser check.
+- After the downloader returns, the worker sets `processing` itself (cover, tags and the move
+  still follow), so a downloader that never reports a stage still ends in `processing`.
 - The worker's throttle (`PROGRESS_INTERVAL = 1.0`) applies only to fractions below 1.0.
   A fraction of 1.0 and every stage change are always sent.
 - The `Downloader` type gains the `on_stage` argument; test fakes call it.
