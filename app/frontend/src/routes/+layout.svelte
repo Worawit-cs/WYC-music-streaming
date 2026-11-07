@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import { ApiError } from '$lib/api';
 	import { api } from '$lib/client';
+	import DoneDialog from '$lib/components/DoneDialog.svelte';
 	import Nav from '$lib/components/Nav.svelte';
 	import { connectEvents } from '$lib/events';
 	import { errorText } from '$lib/format';
@@ -75,4 +76,7 @@
 			<p class="text-muted">กำลังโหลด…</p>
 		{/if}
 	</main>
+	{#if jobs.showDone && !denied}
+		<DoneDialog finished={jobs.finished} onclose={() => jobs.dismissDone()} />
+	{/if}
 </div>
