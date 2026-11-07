@@ -24,11 +24,13 @@ CREATE TABLE IF NOT EXISTS jobs (
   progress    REAL NOT NULL DEFAULT 0,
   error       TEXT,
   final_path  TEXT,
+  stage       TEXT,                         -- finding / downloading / processing while downloading
   created_at  TEXT NOT NULL,
   updated_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS jobs_user_status ON jobs(user, status);
 """
+STAGES = ("finding", "downloading", "processing")
 
 
 def _now() -> str:
@@ -64,6 +66,7 @@ class Job:
     final_path: str | None
     created_at: str
     updated_at: str
+    stage: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -78,6 +81,9 @@ class JobStore:
         with self._lock:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.executescript(SCHEMA)
+            columns = {row["name"] for row in self._db.execute("PRAGMA table_info(jobs)")}
+            if "stage" not in columns:  # databases created before the stage column
+                self._db.execute("ALTER TABLE jobs ADD COLUMN stage TEXT")
 
     def close(self) -> None:
         self._db.close()
@@ -125,7 +131,8 @@ class JobStore:
                 return None
             job_id = row["id"]
             self._db.execute(
-                "UPDATE jobs SET status = 'downloading', progress = 0, error = NULL, updated_at = ? WHERE id = ?",
+                "UPDATE jobs SET status = 'downloading', progress = 0, error = NULL, stage = 'finding',"
+                " updated_at = ? WHERE id = ?",
                 (_now(), job_id),
             )
         return self.get(job_id)
@@ -139,6 +146,11 @@ class JobStore:
 
     def set_progress(self, job_id: int, fraction: float) -> None:
         self._update(job_id, "progress = ?", (max(0.0, min(1.0, fraction)),))
+
+    def set_stage(self, job_id: int, stage: str) -> None:
+        if stage not in STAGES:
+            raise ValueError(f"unknown stage {stage!r}")
+        self._update(job_id, "stage = ?", (stage,))
 
     def finish(self, job_id: int, final_path: str) -> None:
         self._update(job_id, "status = 'done', progress = 1, final_path = ?, error = NULL", (final_path,))
@@ -158,7 +170,7 @@ class JobStore:
     def retry(self, user: str, job_id: int) -> bool:
         with self._lock:
             cur = self._db.execute(
-                "UPDATE jobs SET status = 'queued', progress = 0, error = NULL, updated_at = ?"
+                "UPDATE jobs SET status = 'queued', progress = 0, error = NULL, stage = NULL, updated_at = ?"
                 " WHERE id = ? AND user = ? AND status = 'failed'",
                 (_now(), job_id, user),
             )
@@ -167,7 +179,8 @@ class JobStore:
     def recover(self) -> int:
         with self._lock:
             cur = self._db.execute(
-                "UPDATE jobs SET status = 'queued', progress = 0, updated_at = ? WHERE status = 'downloading'",
+                "UPDATE jobs SET status = 'queued', progress = 0, stage = NULL, updated_at = ?"
+                " WHERE status = 'downloading'",
                 (_now(),),
             )
         return cur.rowcount

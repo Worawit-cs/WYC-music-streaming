@@ -99,3 +99,44 @@ def test_persists_across_reopen(tmp_path):
     s2 = JobStore(path)
     assert s2.get(a.id).video_id == "aaaaaaaaaaa"
     s2.close()
+
+
+def test_claim_sets_stage_finding_and_set_stage_round_trip(store):
+    [a] = store.add("wick", [item()])
+    assert store.get(a.id).stage is None
+    assert store.claim_next().stage == "finding"
+    store.set_stage(a.id, "downloading")
+    assert store.get(a.id).stage == "downloading"
+    store.fail(a.id, "x")
+    store.retry("wick", a.id)
+    assert store.get(a.id).stage is None
+
+
+def test_recover_clears_stage(store):
+    store.add("wick", [item()])
+    store.claim_next()
+    store.recover()
+    assert store.list_for_user("wick")[0].stage is None
+
+
+def test_old_database_gets_stage_column(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "old.db"
+    db = sqlite3.connect(path)
+    db.executescript("""
+        CREATE TABLE jobs (
+          id INTEGER PRIMARY KEY, user TEXT NOT NULL, video_id TEXT NOT NULL, title TEXT NOT NULL,
+          artist TEXT NOT NULL, album TEXT NOT NULL, track_no INTEGER, year TEXT, cover_url TEXT,
+          box_id TEXT, status TEXT NOT NULL, progress REAL NOT NULL DEFAULT 0, error TEXT,
+          final_path TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+        INSERT INTO jobs (user, video_id, title, artist, album, status, created_at, updated_at)
+          VALUES ('wick', 'aaaaaaaaaaa', 'Numb', 'Linkin Park', 'Meteora', 'done', 'x', 'x');
+    """)
+    db.close()
+    s = JobStore(path)
+    assert s.get(1).stage is None
+    s.set_stage(1, "processing")
+    assert s.get(1).stage == "processing"
+    s.close()
+    JobStore(path).close()  # opening again must not try to add the column twice
